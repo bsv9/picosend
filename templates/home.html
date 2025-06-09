@@ -1,0 +1,176 @@
+<!DOCTYPE html>
+<html lang="en" data-theme="light">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GoneTime - Share Secrets Securely</title>
+    <link href="/static/css/pico.min.css" rel="stylesheet">
+</head>
+<body>
+    <main class="container">
+        <section>
+            <hgroup>
+                <h1>GoneTime</h1>
+                <p>Share secrets securely. Once read, they're gone forever.</p>
+            </hgroup>
+            
+            <article>
+                <header>
+                    <h2>Create Secret</h2>
+                </header>
+                <form id="secretForm">
+                    <label for="secret">Your Secret</label>
+                    <textarea 
+                        id="secret" 
+                        name="secret" 
+                        rows="4" 
+                        placeholder="Enter your secret message here..."
+                        required
+                    ></textarea>
+                    <button type="submit">Create Secret Link</button>
+                </form>
+            </article>
+
+            <article id="result" style="display: none;">
+                <header>
+                    <h3>Secret Created!</h3>
+                </header>
+                <p>Share this link with your friend. It will only work once:</p>
+                <div class="grid">
+                    <input 
+                        type="text" 
+                        id="secretLink" 
+                        readonly
+                    >
+                    <button 
+                        id="copyBtn" 
+                        type="button"
+                        class="secondary"
+                    >
+                        Copy
+                    </button>
+                </div>
+            </article>
+
+            <footer style="text-align: center; margin-top: 2rem;">
+                <small>✨ No accounts required • 🔒 Secure by design • 🗑️ Auto-delete after reading</small>
+            </footer>
+        </section>
+    </main>
+
+    <script>
+        // AES encryption functions
+        async function generateEncryptionKey() {
+            try {
+                const response = await fetch('/api/encryption-key');
+                const data = await response.json();
+                return data.key;
+            } catch (error) {
+                throw new Error('Failed to get encryption key');
+            }
+        }
+
+        function addPKCS7Padding(data, blockSize) {
+            const padding = blockSize - (data.length % blockSize);
+            const paddedData = new Uint8Array(data.length + padding);
+            paddedData.set(data);
+            for (let i = data.length; i < paddedData.length; i++) {
+                paddedData[i] = padding;
+            }
+            return paddedData;
+        }
+
+        async function encryptData(plaintext, keyBase64) {
+            // Convert base64 key to bytes
+            const keyBytes = Uint8Array.from(atob(keyBase64), c => c.charCodeAt(0));
+            
+            // Import the key
+            const cryptoKey = await crypto.subtle.importKey(
+                'raw',
+                keyBytes,
+                { name: 'AES-CBC' },
+                false,
+                ['encrypt']
+            );
+            
+            // Generate random IV
+            const iv = crypto.getRandomValues(new Uint8Array(16));
+            
+            // Encode and pad the data
+            const encoder = new TextEncoder();
+            const data = encoder.encode(plaintext);
+            const paddedData = addPKCS7Padding(data, 16);
+            
+            // Encrypt the data
+            const encrypted = await crypto.subtle.encrypt(
+                { name: 'AES-CBC', iv: iv },
+                cryptoKey,
+                paddedData
+            );
+            
+            // Combine IV and encrypted data
+            const combined = new Uint8Array(iv.length + encrypted.byteLength);
+            combined.set(iv);
+            combined.set(new Uint8Array(encrypted), iv.length);
+            
+            // Return as base64
+            return btoa(String.fromCharCode(...combined));
+        }
+
+        document.getElementById('secretForm').addEventListener('submit', async function(e) {
+            e.preventDefault();
+            
+            const secretContent = document.getElementById('secret').value;
+            if (!secretContent.trim()) return;
+            
+            try {
+                // Get encryption key from server
+                const encryptionKey = await generateEncryptionKey();
+                
+                // Encrypt the secret content
+                const encryptedContent = await encryptData(secretContent, encryptionKey);
+                
+                // Send encrypted content to server
+                const response = await fetch('/api/secrets', {
+                    method: 'POST',
+                    headers: {
+                        'Content-Type': 'application/json',
+                    },
+                    body: JSON.stringify({ 
+                        content: encryptedContent,
+                        encryption_key: encryptionKey
+                    })
+                });
+                
+                if (response.ok) {
+                    const data = await response.json();
+                    const secretLink = window.location.origin + '/s/' + data.id;
+                    
+                    document.getElementById('secretLink').value = secretLink;
+                    document.getElementById('result').style.display = 'block';
+                    document.getElementById('secret').value = '';
+                } else {
+                    alert('Error creating secret. Please try again.');
+                }
+            } catch (error) {
+                console.error('Encryption error:', error);
+                alert('Error creating secret. Please try again.');
+            }
+        });
+        
+        document.getElementById('copyBtn').addEventListener('click', function() {
+            const secretLink = document.getElementById('secretLink');
+            secretLink.select();
+            secretLink.setSelectionRange(0, 99999);
+            navigator.clipboard.writeText(secretLink.value);
+            
+            const btn = document.getElementById('copyBtn');
+            const originalText = btn.textContent;
+            btn.textContent = 'Copied!';
+            setTimeout(() => {
+                btn.textContent = originalText;
+            }, 2000);
+        });
+    </script>
+</body>
+</html>
