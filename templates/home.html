@@ -3,14 +3,14 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GoneTime - Share Secrets Securely</title>
+    <title>PicoSend - Share Secrets Securely</title>
     <link href="/static/css/pico.min.css" rel="stylesheet">
 </head>
 <body>
     <main class="container">
         <section>
             <hgroup>
-                <h1>GoneTime</h1>
+                <h1>PicoSend</h1>
                 <p>Share secrets securely. Once read, they're gone forever.</p>
             </hgroup>
             
@@ -25,8 +25,10 @@
                         name="secret" 
                         rows="4" 
                         placeholder="Enter your secret message here..."
+                        maxlength="65536"
                         required
                     ></textarea>
+                    <small id="charCount" style="color: #666;">0 / 65,536 characters</small>
                     <button type="submit">Create Secret Link</button>
                 </form>
             </article>
@@ -117,11 +119,34 @@
             return btoa(String.fromCharCode(...combined));
         }
 
+        // Character counter
+        const secretTextarea = document.getElementById('secret');
+        const charCountDisplay = document.getElementById('charCount');
+        const MAX_SECRET_LENGTH = 65536; // This should match MaxSecretLength in Go
+        
+        secretTextarea.addEventListener('input', function() {
+            const currentLength = this.value.length;
+            charCountDisplay.textContent = `${currentLength.toLocaleString()} / ${MAX_SECRET_LENGTH.toLocaleString()} characters`;
+            
+            if (currentLength > MAX_SECRET_LENGTH * 0.9) {
+                charCountDisplay.style.color = '#e74c3c';
+            } else if (currentLength > MAX_SECRET_LENGTH * 0.8) {
+                charCountDisplay.style.color = '#f39c12';
+            } else {
+                charCountDisplay.style.color = '#666';
+            }
+        });
+
         document.getElementById('secretForm').addEventListener('submit', async function(e) {
             e.preventDefault();
             
             const secretContent = document.getElementById('secret').value;
             if (!secretContent.trim()) return;
+            
+            if (secretContent.length > MAX_SECRET_LENGTH) {
+                alert(`Secret is too long. Maximum length is ${MAX_SECRET_LENGTH.toLocaleString()} characters.`);
+                return;
+            }
             
             try {
                 // Get encryption key from server

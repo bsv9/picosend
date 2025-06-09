@@ -273,3 +273,54 @@ func TestVerifySecretHandler_InvalidJSON(t *testing.T) {
 		t.Errorf("Expected status 400, got %d", w.Code)
 	}
 }
+
+func TestCreateSecretHandler_ContentTooLong(t *testing.T) {
+	// Test with content that exceeds MaxSecretLength characters
+	longContent := strings.Repeat("a", MaxSecretLength+1)
+	reqBody := CreateSecretRequest{
+		Content:       longContent,
+		EncryptionKey: generateEncryptionKey(),
+	}
+	jsonBody, _ := json.Marshal(reqBody)
+	
+	req := httptest.NewRequest("POST", "/api/secrets", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	
+	createSecretHandler(w, req)
+	
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for content too long, got %d", w.Code)
+	}
+	
+	if !strings.Contains(w.Body.String(), "exceeds maximum length") {
+		t.Errorf("Expected error message about length limit, got: %s", w.Body.String())
+	}
+}
+
+func TestCreateSecretHandler_ContentAtLimit(t *testing.T) {
+	// Test with content exactly at the MaxSecretLength character limit
+	contentAtLimit := strings.Repeat("a", MaxSecretLength)
+	reqBody := CreateSecretRequest{
+		Content:       contentAtLimit,
+		EncryptionKey: generateEncryptionKey(),
+	}
+	jsonBody, _ := json.Marshal(reqBody)
+	
+	req := httptest.NewRequest("POST", "/api/secrets", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	
+	createSecretHandler(w, req)
+	
+	// This should fail because we're not providing properly encrypted data
+	// but the length validation should pass
+	if w.Code != http.StatusBadRequest {
+		t.Errorf("Expected status 400 for improperly encrypted data, got %d", w.Code)
+	}
+	
+	// Make sure it's not failing due to length
+	if strings.Contains(w.Body.String(), "exceeds maximum length") {
+		t.Errorf("Should not fail due to length at limit, got: %s", w.Body.String())
+	}
+}

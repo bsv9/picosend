@@ -2,6 +2,7 @@ package main
 
 import (
 	"encoding/json"
+	"fmt"
 	"net/http"
 
 	"github.com/gorilla/mux"
@@ -48,6 +49,12 @@ func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	// Validate content length
+	if len(req.Content) > MaxSecretLength {
+		http.Error(w, fmt.Sprintf("Content exceeds maximum length of %d characters", MaxSecretLength), http.StatusBadRequest)
+		return
+	}
+
 	if req.EncryptionKey == "" {
 		http.Error(w, "Encryption key cannot be empty", http.StatusBadRequest)
 		return
@@ -57,6 +64,12 @@ func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 	decryptedContent, err := decrypt(req.Content, req.EncryptionKey)
 	if err != nil {
 		http.Error(w, "Failed to decrypt content", http.StatusBadRequest)
+		return
+	}
+
+	// Validate decrypted content length as well
+	if len(decryptedContent) > MaxSecretLength {
+		http.Error(w, fmt.Sprintf("Decrypted content exceeds maximum length of %d characters", MaxSecretLength), http.StatusBadRequest)
 		return
 	}
 

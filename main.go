@@ -6,7 +6,6 @@ import (
 	"crypto/rand"
 	"embed"
 	"encoding/base64"
-	"encoding/hex"
 	"fmt"
 	"log"
 	"net/http"
@@ -14,6 +13,10 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+)
+
+const (
+	MaxSecretLength = 65536 // Maximum secret content length in characters
 )
 
 //go:embed static/css/pico.min.css
@@ -65,9 +68,9 @@ func (s *SecretStore) Get(id string) (*Secret, bool) {
 }
 
 func generateID() string {
-	bytes := make([]byte, 16)
+	bytes := make([]byte, 12) // 12 bytes = 16 chars in base64url (vs 32 chars in hex)
 	rand.Read(bytes)
-	return hex.EncodeToString(bytes)
+	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bytes)
 }
 
 func generateEncryptionKey() string {

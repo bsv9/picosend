@@ -15,8 +15,8 @@ func TestSecretStore_Store(t *testing.T) {
 		t.Error("Expected non-empty ID")
 	}
 	
-	if len(id) != 32 {
-		t.Errorf("Expected ID length of 32, got %d", len(id))
+	if len(id) != 16 {
+		t.Errorf("Expected ID length of 16, got %d", len(id))
 	}
 }
 
@@ -83,18 +83,18 @@ func TestGenerateID(t *testing.T) {
 		t.Error("Expected different IDs on subsequent calls")
 	}
 	
-	if len(id1) != 32 {
-		t.Errorf("Expected ID length of 32, got %d", len(id1))
+	if len(id1) != 16 {
+		t.Errorf("Expected ID length of 16, got %d", len(id1))
 	}
 	
-	if len(id2) != 32 {
-		t.Errorf("Expected ID length of 32, got %d", len(id2))
+	if len(id2) != 16 {
+		t.Errorf("Expected ID length of 16, got %d", len(id2))
 	}
 	
-	// Check that ID contains only hex characters
+	// Check that ID contains only base64url characters (A-Z, a-z, 0-9, -, _)
 	for _, char := range id1 {
-		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'f')) {
-			t.Errorf("Expected hex character, got '%c'", char)
+		if !((char >= '0' && char <= '9') || (char >= 'a' && char <= 'z') || (char >= 'A' && char <= 'Z') || char == '-' || char == '_') {
+			t.Errorf("Expected base64url character, got '%c'", char)
 		}
 	}
 }
