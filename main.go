@@ -129,6 +129,13 @@ func decrypt(encryptedData, keyStr string) (string, error) {
 		return "", fmt.Errorf("padding size larger than ciphertext")
 	}
 	
+	// Validate that all padding bytes are the same
+	for i := len(ciphertext) - padding; i < len(ciphertext); i++ {
+		if ciphertext[i] != byte(padding) {
+			return "", fmt.Errorf("invalid PKCS7 padding")
+		}
+	}
+	
 	return string(ciphertext[:len(ciphertext)-padding]), nil
 }
 

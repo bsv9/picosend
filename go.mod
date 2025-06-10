@@ -1,4 +1,4 @@
-module gonetime
+module picosend
 
 go 1.21
 
