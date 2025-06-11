@@ -60,7 +60,10 @@ func TestDirectSecretRetrieval(t *testing.T) {
 	// This test bypasses encryption by directly storing a secret in the store
 	// to test the retrieval mechanism
 	secretContent := "Direct retrieval test"
-	secretID := store.Store(secretContent)
+	secretID, err := store.Store(secretContent)
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	// Test direct GET retrieval
 	resp, err := http.Get(server.URL + "/api/secrets/" + secretID)
@@ -137,7 +140,10 @@ func TestConcurrentSecretOperations(t *testing.T) {
 	for i := 0; i < numSecrets; i++ {
 		go func(index int) {
 			secretContent := "Concurrent test secret"
-			secretID := store.Store(secretContent)
+			secretID, err := store.Store(secretContent)
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 			secretIDs[index] = secretID
 			done <- true
 		}(i)

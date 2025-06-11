@@ -17,6 +17,7 @@ import (
 
 const (
 	MaxSecretLength = 65536 // Maximum secret content length in characters
+	MaxUnreadSecrets = 1000 // Maximum number of unread secrets in memory
 )
 
 //go:embed static/css/pico.min.css
@@ -42,9 +43,14 @@ func NewSecretStore() *SecretStore {
 	}
 }
 
-func (s *SecretStore) Store(content string) string {
+func (s *SecretStore) Store(content string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
+
+	// Check if we've reached the maximum number of unread secrets
+	if len(s.secrets) >= MaxUnreadSecrets {
+		return "", fmt.Errorf("maximum number of unread secrets (%d) reached", MaxUnreadSecrets)
+	}
 
 	id := generateID()
 	secret := &Secret{
@@ -53,7 +59,7 @@ func (s *SecretStore) Store(content string) string {
 		CreatedAt: time.Now(),
 	}
 	s.secrets[id] = secret
-	return id
+	return id, nil
 }
 
 func (s *SecretStore) Get(id string) (*Secret, bool) {
@@ -65,6 +71,12 @@ func (s *SecretStore) Get(id string) (*Secret, bool) {
 		delete(s.secrets, id)
 	}
 	return secret, exists
+}
+
+func (s *SecretStore) Count() int {
+	s.mu.RLock()
+	defer s.mu.RUnlock()
+	return len(s.secrets)
 }
 
 func generateID() string {

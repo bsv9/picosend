@@ -73,7 +73,11 @@ func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id := store.Store(decryptedContent)
+	id, err := store.Store(decryptedContent)
+	if err != nil {
+		http.Error(w, err.Error(), http.StatusTooManyRequests)
+		return
+	}
 
 	w.Header().Set("Content-Type", "application/json")
 	json.NewEncoder(w).Encode(CreateSecretResponse{ID: id})

@@ -7,6 +7,7 @@ import (
 	"crypto/rand"
 	"encoding/base64"
 	"encoding/json"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"strings"
@@ -91,7 +92,10 @@ func TestGetSecretHandler(t *testing.T) {
 	// First create a secret
 	store = NewSecretStore() // Reset store for clean test
 	secretContent := "test secret content"
-	secretID := store.Store(secretContent)
+	secretID, err := store.Store(secretContent)
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	// Test retrieving the secret
 	req := httptest.NewRequest("GET", "/api/secrets/"+secretID, nil)
@@ -107,7 +111,7 @@ func TestGetSecretHandler(t *testing.T) {
 	}
 	
 	var response GetSecretResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Errorf("Failed to parse response: %v", err)
 	}
@@ -141,7 +145,10 @@ func TestGetSecretHandler_OnlyOnce(t *testing.T) {
 	// First create a secret
 	store = NewSecretStore() // Reset store for clean test
 	secretContent := "test secret content"
-	secretID := store.Store(secretContent)
+	secretID, err := store.Store(secretContent)
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	// First retrieval should succeed
 	req1 := httptest.NewRequest("GET", "/api/secrets/"+secretID, nil)
@@ -170,7 +177,10 @@ func TestVerifySecretHandler(t *testing.T) {
 	// First create a secret
 	store = NewSecretStore() // Reset store for clean test
 	secretContent := "test secret content"
-	secretID := store.Store(secretContent)
+	secretID, err := store.Store(secretContent)
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	// Test verify endpoint
 	reqBody := VerifySecretRequest{VerificationCode: "ABC123"}
@@ -190,7 +200,7 @@ func TestVerifySecretHandler(t *testing.T) {
 	}
 	
 	var response GetSecretResponse
-	err := json.Unmarshal(w.Body.Bytes(), &response)
+	err = json.Unmarshal(w.Body.Bytes(), &response)
 	if err != nil {
 		t.Errorf("Failed to parse response: %v", err)
 	}
@@ -202,7 +212,10 @@ func TestVerifySecretHandler(t *testing.T) {
 
 func TestVerifySecretHandler_InvalidCode(t *testing.T) {
 	store = NewSecretStore() // Reset store for clean test
-	secretID := store.Store("test content")
+	secretID, err := store.Store("test content")
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	// Test with invalid code (too short)
 	reqBody := VerifySecretRequest{VerificationCode: "ABC"}
@@ -223,7 +236,10 @@ func TestVerifySecretHandler_InvalidCode(t *testing.T) {
 
 func TestVerifySecretHandler_EmptyCode(t *testing.T) {
 	store = NewSecretStore() // Reset store for clean test
-	secretID := store.Store("test content")
+	secretID, err := store.Store("test content")
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	// Test with empty code
 	reqBody := VerifySecretRequest{VerificationCode: ""}
@@ -263,7 +279,10 @@ func TestVerifySecretHandler_NotFound(t *testing.T) {
 
 func TestVerifySecretHandler_InvalidJSON(t *testing.T) {
 	store = NewSecretStore() // Reset store for clean test
-	secretID := store.Store("test content")
+	secretID, err := store.Store("test content")
+	if err != nil {
+		t.Fatalf("Failed to store secret: %v", err)
+	}
 	
 	req := httptest.NewRequest("POST", "/api/secrets/"+secretID+"/verify", strings.NewReader("invalid json"))
 	req.Header.Set("Content-Type", "application/json")
@@ -461,5 +480,58 @@ func TestSmallSecretEncryptionDecryption(t *testing.T) {
 				t.Errorf("Expected content length %d, got %d", len(tc.content), len(getResponse.Content))
 			}
 		})
+	}
+}
+
+func TestCreateSecretHandler_MaxSecretsLimit(t *testing.T) {
+	store = NewSecretStore() // Reset store for clean test
+	
+	// Create a simple content and encrypt it properly
+	content := "test"
+	key := generateEncryptionKey()
+	encryptedContent, err := simulateEncryption(content, key)
+	if err != nil {
+		t.Fatalf("Failed to encrypt content: %v", err)
+	}
+	
+	// Fill up to the limit
+	for i := 0; i < MaxUnreadSecrets; i++ {
+		reqBody := CreateSecretRequest{
+			Content:       encryptedContent,
+			EncryptionKey: key,
+		}
+		jsonBody, _ := json.Marshal(reqBody)
+		
+		req := httptest.NewRequest("POST", "/api/secrets", bytes.NewBuffer(jsonBody))
+		req.Header.Set("Content-Type", "application/json")
+		w := httptest.NewRecorder()
+		
+		createSecretHandler(w, req)
+		
+		if w.Code != http.StatusOK {
+			t.Fatalf("Expected status 200 for secret %d, got %d. Body: %s", i, w.Code, w.Body.String())
+		}
+	}
+	
+	// Try to create one more - should fail with 429
+	reqBody := CreateSecretRequest{
+		Content:       encryptedContent,
+		EncryptionKey: key,
+	}
+	jsonBody, _ := json.Marshal(reqBody)
+	
+	req := httptest.NewRequest("POST", "/api/secrets", bytes.NewBuffer(jsonBody))
+	req.Header.Set("Content-Type", "application/json")
+	w := httptest.NewRecorder()
+	
+	createSecretHandler(w, req)
+	
+	if w.Code != http.StatusTooManyRequests {
+		t.Errorf("Expected status 429, got %d. Body: %s", w.Code, w.Body.String())
+	}
+	
+	expectedError := fmt.Sprintf("maximum number of unread secrets (%d) reached", MaxUnreadSecrets)
+	if !strings.Contains(w.Body.String(), expectedError) {
+		t.Errorf("Expected error message to contain '%s', got '%s'", expectedError, w.Body.String())
 	}
 }
