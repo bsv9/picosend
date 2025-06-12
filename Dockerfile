@@ -15,7 +15,7 @@ COPY index.html ./
 RUN CGO_ENABLED=0 GOOS=linux go build -o picosend
 
 ### RELEASE IMAGE ###
-FROM docker.io/alpine:3.21
+FROM docker.io/alpine:3.22
 
 RUN apk --no-cache add ca-certificates tzdata
 RUN addgroup -S application --gid 10001 && adduser -S application -G application --uid 10001
