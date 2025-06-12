@@ -29,6 +29,9 @@ jobs:
           go build -race ./...
           cat $GITHUB_WORKSPACE/profile.cov_tmp | grep -v "mocks" | grep -v "_mock" > $GITHUB_WORKSPACE/profile.cov
 
+      - name: show coverage
+        run: cat $GITHUB_WORKSPACE/profile.cov
+
       # - name: golangci-lint
       #   uses: golangci/golangci-lint-action@v6
       #   with:
