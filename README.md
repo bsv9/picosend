@@ -1,4 +1,5 @@
-# picosend
+# picosend [![build](https://github.com/bsv9/picosend/actions/workflows/ci.yml/badge.svg)](https://github.com/bsv9/picosend/actions/workflows/ci.yml)&nbsp;[![Coverage Status](https://coveralls.io/repos/github/bsv9/picosend/badge.svg?branch=main)](https://coveralls.io/github/bsv9/picosend?branch=main)
+
 
 A minimalistic application for sharing secrets securely with one-time access.
 
