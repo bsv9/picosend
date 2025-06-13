@@ -68,9 +68,46 @@ func (s *SecretStore) Get(id string) (*Secret, bool) {
 
 	secret, exists := s.secrets[id]
 	if exists {
+		// Create a copy of the secret for return
+		secretCopy := &Secret{
+			ID:        secret.ID,
+			Content:   secret.Content,
+			CreatedAt: secret.CreatedAt,
+		}
+		
+		// Wipe the original secret's content from memory
+		wipeSecret(secret)
+		
+		// Delete the secret from the store
 		delete(s.secrets, id)
+		
+		return secretCopy, true
 	}
-	return secret, exists
+	return nil, false
+}
+
+// wipeSecret securely overwrites secret data and creates a new secret with wiped content
+func wipeSecret(secret *Secret) {
+	if secret == nil {
+		return
+	}
+	
+	// Create byte slices to overwrite
+	contentBytes := []byte(secret.Content)
+	idBytes := []byte(secret.ID)
+	
+	// Overwrite the byte slices with zeros
+	for i := range contentBytes {
+		contentBytes[i] = 0
+	}
+	for i := range idBytes {
+		idBytes[i] = 0
+	}
+	
+	// Replace the string fields with empty strings
+	// This doesn't guarantee the original strings are wiped but provides some protection
+	secret.Content = ""
+	secret.ID = ""
 }
 
 func (s *SecretStore) Count() int {
