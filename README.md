@@ -62,7 +62,8 @@ go build -o picosend
 - **Client-side encryption** before transmission
 - **Automatic secret deletion** after first retrieval
 - **Transport security** prevents proxy/logging exposure
-- **No persistent storage** - secrets exist only in memory
+- **Memory is securely wiped after secret deletion**
+- **Secure wipe memory** after deletion
 
 ## License
 
