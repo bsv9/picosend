@@ -63,7 +63,6 @@ go build -o picosend
 - **Automatic secret deletion** after first retrieval
 - **Transport security** prevents proxy/logging exposure
 - **Memory is securely wiped after secret deletion**
-- **Secure wipe memory** after deletion
 
 ## License
 
