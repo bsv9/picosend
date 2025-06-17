@@ -26,16 +26,10 @@ A minimalistic application for sharing secrets securely with one-time access.
 # Pull the image
 docker pull docker.io/bsv9/picosend
 
-# Run with default settings (logs in /logs directory)
+# Run with default settings
 docker run -p 8080:8080 -d docker.io/bsv9/picosend
 
-# Run with custom log directory
-docker run -p 8080:8080 -v /path/to/logs:/logs -d docker.io/bsv9/picosend
-
-# Run with custom port
-docker run -p 9000:8080 -d docker.io/bsv9/picosend
-
-# Access WebTail
+# Access picosend
 open http://localhost:8080
 ```
 
