@@ -16,15 +16,15 @@ import (
 )
 
 const (
-	MaxSecretLength = 65536 // Maximum secret content length in characters
-	MaxUnreadSecrets = 1000 // Maximum number of unread secrets in memory
+	MaxSecretLength  = 65536 // Maximum secret content length in characters
+	MaxUnreadSecrets = 1000  // Maximum number of unread secrets in memory
 )
-
-//go:embed static/css/pico.min.css
-var picoCSS embed.FS
 
 //go:embed templates/*.html
 var templatesFS embed.FS
+
+//go:embed static/*
+var staticFS embed.FS
 
 type Secret struct {
 	ID        string    `json:"id"`
@@ -74,13 +74,13 @@ func (s *SecretStore) Get(id string) (*Secret, bool) {
 			Content:   secret.Content,
 			CreatedAt: secret.CreatedAt,
 		}
-		
+
 		// Wipe the original secret's content from memory
 		wipeSecret(secret)
-		
+
 		// Delete the secret from the store
 		delete(s.secrets, id)
-		
+
 		return secretCopy, true
 	}
 	return nil, false
@@ -91,11 +91,11 @@ func wipeSecret(secret *Secret) {
 	if secret == nil {
 		return
 	}
-	
+
 	// Create byte slices to overwrite
 	contentBytes := []byte(secret.Content)
 	idBytes := []byte(secret.ID)
-	
+
 	// Overwrite the byte slices with zeros
 	for i := range contentBytes {
 		contentBytes[i] = 0
@@ -103,7 +103,7 @@ func wipeSecret(secret *Secret) {
 	for i := range idBytes {
 		idBytes[i] = 0
 	}
-	
+
 	// Replace the string fields with empty strings
 	// This doesn't guarantee the original strings are wiped but provides some protection
 	secret.Content = ""
@@ -133,78 +133,99 @@ func decrypt(encryptedData, keyStr string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	
+
 	ciphertext, err := base64.StdEncoding.DecodeString(encryptedData)
 	if err != nil {
 		return "", err
 	}
-	
+
 	block, err := aes.NewCipher(key)
 	if err != nil {
 		return "", err
 	}
-	
+
 	if len(ciphertext) < aes.BlockSize {
 		return "", fmt.Errorf("ciphertext too short")
 	}
-	
+
 	// Check if ciphertext length is valid for CBC (must be multiple of block size)
 	if len(ciphertext)%aes.BlockSize != 0 {
 		return "", fmt.Errorf("ciphertext is not a multiple of the block size")
 	}
-	
+
 	iv := ciphertext[:aes.BlockSize]
 	ciphertext = ciphertext[aes.BlockSize:]
-	
+
 	// Check if there's actual ciphertext after the IV
 	if len(ciphertext) == 0 {
 		return "", fmt.Errorf("no ciphertext after IV")
 	}
-	
+
 	mode := cipher.NewCBCDecrypter(block, iv)
 	mode.CryptBlocks(ciphertext, ciphertext)
-	
+
 	// Validate and remove PKCS7 padding
 	if len(ciphertext) == 0 {
 		return "", fmt.Errorf("empty ciphertext after decryption")
 	}
-	
+
 	padding := int(ciphertext[len(ciphertext)-1])
 	if padding > aes.BlockSize || padding == 0 {
 		return "", fmt.Errorf("invalid padding")
 	}
-	
+
 	if len(ciphertext) < padding {
 		return "", fmt.Errorf("padding size larger than ciphertext")
 	}
-	
+
 	// Validate that all padding bytes are the same
 	for i := len(ciphertext) - padding; i < len(ciphertext); i++ {
 		if ciphertext[i] != byte(padding) {
 			return "", fmt.Errorf("invalid PKCS7 padding")
 		}
 	}
-	
+
 	return string(ciphertext[:len(ciphertext)-padding]), nil
 }
 
 var store = NewSecretStore()
 
-func picoCSSHandler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "text/css")
-	data, err := picoCSS.ReadFile("static/css/pico.min.css")
-	if err != nil {
-		http.Error(w, "CSS file not found", http.StatusNotFound)
-		return
-	}
-	w.Write(data)
-}
-
 func main() {
 	r := mux.NewRouter()
 
+	// STATIC SERVING
 	// Serve embedded Pico CSS
-	r.HandleFunc("/static/css/pico.min.css", picoCSSHandler).Methods("GET")
+	r.HandleFunc("/static/css/pico.min.css", func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFS.ReadFile("static/css/pico.min.css")
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/css")
+		w.Write(data)
+	}).Methods("GET")
+
+	// Serve Open Graph image
+	r.HandleFunc("/static/og-image.png", func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFS.ReadFile("static/og-image.png")
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "image/png")
+		w.Write(data)
+	}).Methods("GET")
+
+	// Serve robots.txt
+	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
+		data, err := staticFS.ReadFile("static/robots.txt")
+		if err != nil {
+			http.Error(w, "File not found", http.StatusNotFound)
+			return
+		}
+		w.Header().Set("Content-Type", "text/plain")
+		w.Write(data)
+	}).Methods("GET")
 
 	r.HandleFunc("/", homeHandler).Methods("GET")
 	r.HandleFunc("/api/encryption-key", encryptionKeyHandler).Methods("GET")
