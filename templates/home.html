@@ -158,6 +158,8 @@
                     document.getElementById('secretLink').value = secretLink;
                     document.getElementById('result').style.display = 'block';
                     document.getElementById('secret').value = '';
+                    charCountDisplay.textContent = '0 / 65,536 characters';
+                    charCountDisplay.style.color = '#666';
                 } else {
                     alert('Error creating secret. Please try again.');
                 }
