@@ -1,187 +1,273 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="en" data-theme="light">
-<head>
-    <meta charset="UTF-8">
-    <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>PicoSend - Share Secrets Securely</title>
-    <link href="/static/css/pico.min.css" rel="stylesheet">
-</head>
-<body>
-    <main class="container">
-        <section>
-            <h1><a href="/" style="text-decoration: none; color: inherit;">PicoSend</a> <small style="color: #666;">- Share secrets securely. Once read, they're gone forever.</small></h1>
-            
-            <article>
-                <form id="secretForm">
-                    <label for="secret">Your Secret</label>
-                    <textarea 
-                        id="secret" 
-                        name="secret" 
-                        rows="12" 
-                        placeholder="Enter your secret message here..."
-                        maxlength="65536"
-                        required
-                    ></textarea>
-                    <small id="charCount" style="color: #666;">0 / 65,536 characters</small>
-                    <button type="submit">Create Secret Link</button>
-                </form>
-            </article>
+    <head>
+        <meta charset="UTF-8" />
+        <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+        <title>PicoSend - Share Secrets Securely</title>
+        <link href="/static/css/pico.min.css" rel="stylesheet" />
+    </head>
+    <body>
+        <main class="container">
+            <section>
+                <h1>
+                    <a href="/" style="text-decoration: none; color: inherit">PicoSend</a>
+                    <small style="color: #666">- Share secrets securely. Once read, they're gone forever.</small>
+                </h1>
 
-            <article id="result" style="display: none;">
-                <header>
-                    <h3>Secret Created!</h3>
-                </header>
-                <p>Share this link with your friend. It will only work once:</p>
-                <div class="grid">
-                    <input 
-                        type="text" 
-                        id="secretLink" 
-                        readonly
-                    >
-                    <button 
-                        id="copyBtn" 
-                        type="button"
-                        class="secondary"
-                    >
-                        Copy
-                    </button>
-                </div>
-            </article>
+                <article>
+                    <form id="secretForm">
+                        <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem">
+                            <label for="secret">Your Secret</label>
+                            <button type="button" id="generatePasswordBtn" class="secondary">Generate Password</button>
+                        </div>
+                        <textarea
+                            id="secret"
+                            name="secret"
+                            rows="12"
+                            placeholder="Enter your secret message here..."
+                            maxlength="65536"
+                            required
+                        ></textarea>
+                        <small id="charCount" style="color: #666">0 / 65,536 characters</small>
+                        <button type="submit">Create Secret Link</button>
+                    </form>
+                </article>
 
-            <footer style="text-align: center; margin-top: 2rem;">
-                <small>✨ No accounts required • 🔒 Secure by design • 🗑️ Auto-delete after reading</small>
-                <p><small><a href="https://github.com/bsv9/picosend" target="_blank" style="color: #666;">GitHub</a></small></p>
-            </footer>
-        </section>
-    </main>
+                <article id="result" style="display: none">
+                    <header>
+                        <h3>Secret Created!</h3>
+                    </header>
+                    <p>Share this link with your friend. It will only work once:</p>
+                    <div class="grid">
+                        <input type="text" id="secretLink" readonly />
+                        <button id="copyBtn" type="button" class="secondary">Copy</button>
+                    </div>
+                </article>
 
-    <script>
-        // AES encryption functions
-        async function generateEncryptionKey() {
-            try {
-                const response = await fetch('/api/encryption-key');
-                const data = await response.json();
-                return data.key;
-            } catch (error) {
-                throw new Error('Failed to get encryption key');
-            }
-        }
+                <footer style="text-align: center; margin-top: 2rem">
+                    <small>✨ No accounts required • 🔒 Secure by design • 🗑️ Auto-delete after reading</small>
+                    <p>
+                        <small><a href="https://github.com/bsv9/picosend" target="_blank" style="color: #666">GitHub</a></small>
+                    </p>
+                </footer>
+            </section>
+        </main>
 
-        async function encryptData(plaintext, keyBase64) {
-            // Convert base64 key to bytes
-            const keyBytes = Uint8Array.from(atob(keyBase64), c => c.charCodeAt(0));
-            
-            // Import the key
-            const cryptoKey = await crypto.subtle.importKey(
-                'raw',
-                keyBytes,
-                { name: 'AES-CBC' },
-                false,
-                ['encrypt']
-            );
-            
-            // Generate random IV
-            const iv = crypto.getRandomValues(new Uint8Array(16));
-            
-            // Encode the data (without manual padding)
-            const encoder = new TextEncoder();
-            const data = encoder.encode(plaintext);
-            
-            // Encrypt the data (Web Crypto API handles padding automatically)
-            const encrypted = await crypto.subtle.encrypt(
-                { name: 'AES-CBC', iv: iv },
-                cryptoKey,
-                data
-            );
-            
-            // Combine IV and encrypted data
-            const combined = new Uint8Array(iv.length + encrypted.byteLength);
-            combined.set(iv);
-            combined.set(new Uint8Array(encrypted), iv.length);
-            
-            // Return as base64
-            return btoa(String.fromCharCode(...combined));
-        }
-
-        // Character counter
-        const secretTextarea = document.getElementById('secret');
-        const charCountDisplay = document.getElementById('charCount');
-        const MAX_SECRET_LENGTH = 65536; // This should match MaxSecretLength in Go
-        
-        secretTextarea.addEventListener('input', function() {
-            const currentLength = this.value.length;
-            charCountDisplay.textContent = `${currentLength.toLocaleString()} / ${MAX_SECRET_LENGTH.toLocaleString()} characters`;
-            
-            if (currentLength > MAX_SECRET_LENGTH * 0.9) {
-                charCountDisplay.style.color = '#e74c3c';
-            } else if (currentLength > MAX_SECRET_LENGTH * 0.8) {
-                charCountDisplay.style.color = '#f39c12';
-            } else {
-                charCountDisplay.style.color = '#666';
-            }
-        });
-
-        document.getElementById('secretForm').addEventListener('submit', async function(e) {
-            e.preventDefault();
-            
-            const secretContent = document.getElementById('secret').value;
-            if (!secretContent.trim()) return;
-            
-            if (secretContent.length > MAX_SECRET_LENGTH) {
-                alert(`Secret is too long. Maximum length is ${MAX_SECRET_LENGTH.toLocaleString()} characters.`);
-                return;
-            }
-            
-            try {
-                // Get encryption key from server
-                const encryptionKey = await generateEncryptionKey();
-                
-                // Encrypt the secret content
-                const encryptedContent = await encryptData(secretContent, encryptionKey);
-                
-                // Send encrypted content to server
-                const response = await fetch('/api/secrets', {
-                    method: 'POST',
-                    headers: {
-                        'Content-Type': 'application/json',
-                    },
-                    body: JSON.stringify({ 
-                        content: encryptedContent,
-                        encryption_key: encryptionKey
-                    })
-                });
-                
-                if (response.ok) {
+        <script>
+            // AES encryption functions
+            async function generateEncryptionKey() {
+                try {
+                    const response = await fetch("/api/encryption-key");
                     const data = await response.json();
-                    const secretLink = window.location.origin + '/s/' + data.id;
-                    
-                    document.getElementById('secretLink').value = secretLink;
-                    document.getElementById('result').style.display = 'block';
-                    document.getElementById('secret').value = '';
-                    charCountDisplay.textContent = '0 / 65,536 characters';
-                    charCountDisplay.style.color = '#666';
-                } else {
-                    alert('Error creating secret. Please try again.');
+                    return data.key;
+                } catch (error) {
+                    throw new Error("Failed to get encryption key");
                 }
-            } catch (error) {
-                console.error('Encryption error:', error);
-                alert('Error creating secret. Please try again.');
             }
-        });
-        
-        document.getElementById('copyBtn').addEventListener('click', function() {
-            const secretLink = document.getElementById('secretLink');
-            secretLink.select();
-            secretLink.setSelectionRange(0, 99999);
-            navigator.clipboard.writeText(secretLink.value);
-            
-            const btn = document.getElementById('copyBtn');
-            const originalText = btn.textContent;
-            btn.textContent = 'Copied!';
-            setTimeout(() => {
-                btn.textContent = originalText;
-            }, 2000);
-        });
-    </script>
-</body>
+
+            async function encryptData(plaintext, keyBase64) {
+                // Convert base64 key to bytes
+                const keyBytes = Uint8Array.from(atob(keyBase64), (c) => c.charCodeAt(0));
+
+                // Import the key
+                const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["encrypt"]);
+
+                // Generate random IV
+                const iv = crypto.getRandomValues(new Uint8Array(16));
+
+                // Encode the data (without manual padding)
+                const encoder = new TextEncoder();
+                const data = encoder.encode(plaintext);
+
+                // Encrypt the data (Web Crypto API handles padding automatically)
+                const encrypted = await crypto.subtle.encrypt({ name: "AES-CBC", iv: iv }, cryptoKey, data);
+
+                // Combine IV and encrypted data
+                const combined = new Uint8Array(iv.length + encrypted.byteLength);
+                combined.set(iv);
+                combined.set(new Uint8Array(encrypted), iv.length);
+
+                // Return as base64
+                return btoa(String.fromCharCode(...combined));
+            }
+
+            // Password generation function
+            let pwgenCrypto = self.crypto || self.msCrypto;
+            let getRandomValues = (size) => pwgenCrypto.getRandomValues(new Uint8Array(size));
+
+            let buffer = [];
+            const bufferSize = 0xffff;
+            let bufferIndex = bufferSize;
+
+            const random = (limit) => {
+                if (bufferIndex >= bufferSize) {
+                    buffer = getRandomValues(bufferSize);
+                    bufferIndex = 0;
+                }
+                return buffer[bufferIndex++] % limit;
+            };
+
+            const produce = (number, callback) => {
+                let result = "";
+                for (let i = 0; i < number; i++) {
+                    result += callback(i);
+                }
+                return result;
+            };
+
+            function generatePassword({
+                targetLength = 14,
+                hasNumbers = true,
+                titlecased = true,
+                separators = "!@#$%^&*()_+{}|:\"<>?~-=[]\\;',./",
+                vowels = "aeiou",
+                consonants = "bcdfghjklmnpqrstvwxyz",
+            } = {}) {
+                let password = "";
+                let syllableCount = 0;
+
+                while (password.length < targetLength) {
+                    const remainingLength = targetLength - password.length;
+
+                    // Add separator before syllable (except first)
+                    if (syllableCount > 0 && remainingLength > 1) {
+                        password += separators[random(separators.length)];
+                        if (password.length >= targetLength) break;
+                    }
+
+                    // Determine syllable length based on remaining space
+                    let syllableLength;
+                    const remainingAfterSeparator = targetLength - password.length;
+
+                    if (remainingAfterSeparator <= 2) {
+                        syllableLength = remainingAfterSeparator;
+                    } else if (remainingAfterSeparator <= 4) {
+                        syllableLength = 2 + random(remainingAfterSeparator - 1);
+                    } else {
+                        syllableLength = 2 + random(3); // 2-4 chars
+                    }
+
+                    // Generate syllable
+                    let syllable = "";
+                    for (let i = 0; i < syllableLength && password.length + syllable.length < targetLength; i++) {
+                        const alpha = i % 2 === 0 ? consonants : vowels;
+                        const char = alpha[random(alpha.length)];
+                        syllable += titlecased && syllableCount === 0 && i === 0 ? char.toUpperCase() : char;
+                    }
+
+                    // Add number to syllable if there's space and numbers enabled
+                    if (hasNumbers && password.length + syllable.length + 1 <= targetLength) {
+                        syllable += random(10);
+                    }
+
+                    password += syllable;
+                    syllableCount++;
+
+                    // Safety break to avoid infinite loop
+                    if (syllableCount > 10) break;
+                }
+
+                // Trim to exact length if needed
+                return password.substring(0, targetLength);
+            }
+
+            // Character counter
+            const secretTextarea = document.getElementById("secret");
+            const charCountDisplay = document.getElementById("charCount");
+            const MAX_SECRET_LENGTH = 65536; // This should match MaxSecretLength in Go
+
+            secretTextarea.addEventListener("input", function () {
+                const currentLength = this.value.length;
+                charCountDisplay.textContent = currentLength.toLocaleString() + " / " + MAX_SECRET_LENGTH.toLocaleString() + " characters";
+
+                if (currentLength > MAX_SECRET_LENGTH * 0.9) {
+                    charCountDisplay.style.color = "#e74c3c";
+                } else if (currentLength > MAX_SECRET_LENGTH * 0.8) {
+                    charCountDisplay.style.color = "#f39c12";
+                } else {
+                    charCountDisplay.style.color = "#666";
+                }
+            });
+
+            // Generate Password button
+            document.getElementById("generatePasswordBtn").addEventListener("click", function () {
+                const password = generatePassword({
+                    targetLength: 14,
+                    hasNumbers: true,
+                    titlecased: true,
+                    separators: "!@#$%^&*()_+{}|:\"<>?~-=[]\\;',./",
+                    vowels: "aeiou",
+                    consonants: "bcdfghjklmnpqrstvwxyz",
+                });
+                secretTextarea.value = password;
+
+                // Update character count
+                const currentLength = password.length;
+                charCountDisplay.textContent = currentLength.toLocaleString() + " / " + MAX_SECRET_LENGTH.toLocaleString() + " characters";
+                charCountDisplay.style.color = "#666";
+            });
+
+            document.getElementById("secretForm").addEventListener("submit", async function (e) {
+                e.preventDefault();
+
+                const secretContent = document.getElementById("secret").value;
+                if (!secretContent.trim()) return;
+
+                if (secretContent.length > MAX_SECRET_LENGTH) {
+                    alert("Secret is too long. Maximum length is " + MAX_SECRET_LENGTH.toLocaleString() + " characters.");
+                    return;
+                }
+
+                try {
+                    // Get encryption key from server
+                    const encryptionKey = await generateEncryptionKey();
+
+                    // Encrypt the secret content
+                    const encryptedContent = await encryptData(secretContent, encryptionKey);
+
+                    // Send encrypted content to server
+                    const response = await fetch("/api/secrets", {
+                        method: "POST",
+                        headers: {
+                            "Content-Type": "application/json",
+                        },
+                        body: JSON.stringify({
+                            content: encryptedContent,
+                            encryption_key: encryptionKey,
+                        }),
+                    });
+
+                    if (response.ok) {
+                        const data = await response.json();
+                        const secretLink = window.location.origin + "/s/" + data.id;
+
+                        document.getElementById("secretLink").value = secretLink;
+                        document.getElementById("result").style.display = "block";
+                        document.getElementById("secret").value = "";
+                        charCountDisplay.textContent = "0 / 65,536 characters";
+                        charCountDisplay.style.color = "#666";
+                    } else {
+                        alert("Error creating secret. Please try again.");
+                    }
+                } catch (error) {
+                    console.error("Encryption error:", error);
+                    alert("Error creating secret. Please try again.");
+                }
+            });
+
+            document.getElementById("copyBtn").addEventListener("click", function () {
+                const secretLink = document.getElementById("secretLink");
+                secretLink.select();
+                secretLink.setSelectionRange(0, 99999);
+                navigator.clipboard.writeText(secretLink.value);
+
+                const btn = document.getElementById("copyBtn");
+                const originalText = btn.textContent;
+                btn.textContent = "Copied!";
+                setTimeout(() => {
+                    btn.textContent = originalText;
+                }, 2000);
+            });
+        </script>
+    </body>
 </html>
