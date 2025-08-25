@@ -16,6 +16,7 @@ A minimalistic application for sharing secrets securely with one-time access.
 - **Robot protection** - Seamless verification code system
 - **Transport security** - Prevents exposure through proxies or logs
 - **Minimalistic design** - Simple and intuitive user interface
+- **Secure Password Generation** - Generates strong, random passwords for enhanced security
 
 ## Quick Start
 
