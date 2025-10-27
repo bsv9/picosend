@@ -27,9 +27,7 @@ COPY --from=builder /app/picosend .
 RUN chown -R application:application /app
 
 USER application
-ENV LOG_DIR=/logs
 EXPOSE 8080
 ENTRYPOINT ["/app/picosend"]
 
-LABEL version="1.0.0"
 LABEL description="PicoSend: Share secrets securely. Once read, they're gone forever"
