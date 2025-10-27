@@ -14,7 +14,7 @@
                     <small style="color: #666">- Share secrets securely. Once read, they're gone forever.</small>
                 </h1>
 
-                <article>
+                <article id="secretFormSection">
                     <form id="secretForm">
                         <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.5rem">
                             <label for="secret">Your Secret</label>
@@ -48,12 +48,20 @@
                     <p>Share this link with your friend. It will only work once:</p>
                     <div class="grid">
                         <input type="text" id="secretLink" readonly />
-                        <button id="copyBtn" type="button" class="secondary">Copy</button>
+                        <button id="copyBtn" type="button" class="primary">Copy</button>
                     </div>
                     <div style="text-align: center; margin-top: 1rem">
                         <p><strong>Or scan this QR code:</strong></p>
-                        <img id="qrCode" src="" alt="QR Code" style="max-width: 256px; border: 1px solid #ddd; padding: 10px; border-radius: 8px" />
+                        <img
+                            id="qrCode"
+                            src=""
+                            alt="QR Code"
+                            style="max-width: 256px; border: 1px solid #ddd; padding: 10px; border-radius: 8px"
+                        />
                     </div>
+                    <footer style="margin-top: 1.5rem">
+                        <button type="button" id="createAnotherBtn" class="secondary" style="width: 100%">Create Another Secret</button>
+                    </footer>
                 </article>
 
                 <footer style="text-align: center; margin-top: 2rem">
@@ -259,6 +267,7 @@
 
                         document.getElementById("secretLink").value = secretLink;
                         document.getElementById("qrCode").src = "/api/secrets/" + data.id + "/qr";
+                        document.getElementById("secretFormSection").style.display = "none";
                         document.getElementById("result").style.display = "block";
                         document.getElementById("secret").value = "";
                         charCountDisplay.textContent = "0 / 65,536 characters";
@@ -284,6 +293,11 @@
                 setTimeout(() => {
                     btn.textContent = originalText;
                 }, 2000);
+            });
+
+            document.getElementById("createAnotherBtn").addEventListener("click", function () {
+                document.getElementById("result").style.display = "none";
+                document.getElementById("secretFormSection").style.display = "block";
             });
         </script>
     </body>
