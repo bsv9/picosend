@@ -1,5 +1,5 @@
 ### BUILD IMAGE ###
-FROM docker.io/golang:1.24-alpine AS builder
+FROM docker.io/golang:1.25-alpine AS builder
 
 WORKDIR /app
 
