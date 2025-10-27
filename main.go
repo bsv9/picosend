@@ -275,6 +275,7 @@ func main() {
 	r.HandleFunc("/api/secrets", createSecretHandler).Methods("POST")
 	r.HandleFunc("/api/secrets/{id}", getSecretHandler).Methods("GET")
 	r.HandleFunc("/api/secrets/{id}/verify", verifySecretHandler).Methods("POST")
+	r.HandleFunc("/api/secrets/{id}/qr", qrCodeHandler).Methods("GET")
 	r.HandleFunc("/s/{id}", viewSecretHandler).Methods("GET")
 
 	fmt.Println("Server starting on :8080")

@@ -7,6 +7,7 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/skip2/go-qrcode"
 )
 
 type CreateSecretRequest struct {
@@ -136,4 +137,34 @@ func verifySecretHandler(w http.ResponseWriter, r *http.Request) {
 		Content:   secret.Content,
 		CreatedAt: secret.CreatedAt.Format("2006-01-02 15:04:05 UTC"),
 	})
+}
+
+func qrCodeHandler(w http.ResponseWriter, r *http.Request) {
+	vars := mux.Vars(r)
+	id := vars["id"]
+
+	// Build the full URL for the secret
+	scheme := "http"
+	if r.TLS != nil {
+		scheme = "https"
+	}
+	host := r.Host
+	secretURL := fmt.Sprintf("%s://%s/s/%s", scheme, host, id)
+
+	// Generate QR code
+	qr, err := qrcode.New(secretURL, qrcode.Medium)
+	if err != nil {
+		http.Error(w, "Failed to generate QR code", http.StatusInternalServerError)
+		return
+	}
+
+	// Set QR code size (256x256 pixels)
+	png, err := qr.PNG(256)
+	if err != nil {
+		http.Error(w, "Failed to generate QR code image", http.StatusInternalServerError)
+		return
+	}
+
+	w.Header().Set("Content-Type", "image/png")
+	w.Write(png)
 }

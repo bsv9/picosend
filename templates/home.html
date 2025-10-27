@@ -50,6 +50,10 @@
                         <input type="text" id="secretLink" readonly />
                         <button id="copyBtn" type="button" class="secondary">Copy</button>
                     </div>
+                    <div style="text-align: center; margin-top: 1rem">
+                        <p><strong>Or scan this QR code:</strong></p>
+                        <img id="qrCode" src="" alt="QR Code" style="max-width: 256px; border: 1px solid #ddd; padding: 10px; border-radius: 8px" />
+                    </div>
                 </article>
 
                 <footer style="text-align: center; margin-top: 2rem">
@@ -254,6 +258,7 @@
                         const secretLink = window.location.origin + "/s/" + data.id;
 
                         document.getElementById("secretLink").value = secretLink;
+                        document.getElementById("qrCode").src = "/api/secrets/" + data.id + "/qr";
                         document.getElementById("result").style.display = "block";
                         document.getElementById("secret").value = "";
                         charCountDisplay.textContent = "0 / 65,536 characters";
