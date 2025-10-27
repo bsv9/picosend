@@ -243,3 +243,139 @@ func TestSecretStore_LimitAfterCleanup(t *testing.T) {
 		t.Error("Expected error when back at limit")
 	}
 }
+
+func TestSecretStore_CleanupExpired(t *testing.T) {
+	store := NewSecretStore()
+
+	// Store some secrets with very short lifetime
+	content := "test secret"
+	for i := 0; i < 5; i++ {
+		_, err := store.Store(content, 1*time.Millisecond)
+		if err != nil {
+			t.Fatalf("Expected no error storing secret %d, got %v", i, err)
+		}
+	}
+
+	// Store some secrets with long lifetime
+	for i := 0; i < 3; i++ {
+		_, err := store.Store(content, 24*time.Hour)
+		if err != nil {
+			t.Fatalf("Expected no error storing secret %d, got %v", i, err)
+		}
+	}
+
+	// Verify we have 8 secrets
+	if store.Count() != 8 {
+		t.Errorf("Expected 8 secrets, got %d", store.Count())
+	}
+
+	// Wait for short-lived secrets to expire
+	time.Sleep(10 * time.Millisecond)
+
+	// Run cleanup
+	count := store.CleanupExpired()
+
+	// Should have cleaned up 5 expired secrets
+	if count != 5 {
+		t.Errorf("Expected 5 expired secrets cleaned up, got %d", count)
+	}
+
+	// Should have 3 secrets remaining
+	if store.Count() != 3 {
+		t.Errorf("Expected 3 secrets remaining, got %d", store.Count())
+	}
+}
+
+func TestSecretStore_CleanupExpired_NoExpired(t *testing.T) {
+	store := NewSecretStore()
+
+	// Store secrets with long lifetime
+	content := "test secret"
+	for i := 0; i < 3; i++ {
+		_, err := store.Store(content, 24*time.Hour)
+		if err != nil {
+			t.Fatalf("Expected no error storing secret %d, got %v", i, err)
+		}
+	}
+
+	// Run cleanup
+	count := store.CleanupExpired()
+
+	// Should have cleaned up 0 secrets
+	if count != 0 {
+		t.Errorf("Expected 0 expired secrets cleaned up, got %d", count)
+	}
+
+	// Should still have 3 secrets
+	if store.Count() != 3 {
+		t.Errorf("Expected 3 secrets remaining, got %d", store.Count())
+	}
+}
+
+func TestSecretStore_CleanupExpired_Empty(t *testing.T) {
+	store := NewSecretStore()
+
+	// Run cleanup on empty store
+	count := store.CleanupExpired()
+
+	// Should have cleaned up 0 secrets
+	if count != 0 {
+		t.Errorf("Expected 0 expired secrets cleaned up, got %d", count)
+	}
+
+	// Should have 0 secrets
+	if store.Count() != 0 {
+		t.Errorf("Expected 0 secrets, got %d", store.Count())
+	}
+}
+
+func TestSecretStore_GetExpired(t *testing.T) {
+	store := NewSecretStore()
+
+	// Store a secret with very short lifetime
+	content := "test secret"
+	id, err := store.Store(content, 1*time.Millisecond)
+	if err != nil {
+		t.Fatalf("Expected no error, got %v", err)
+	}
+
+	// Wait for secret to expire
+	time.Sleep(10 * time.Millisecond)
+
+	// Try to get the expired secret
+	secret, found := store.Get(id)
+	if found {
+		t.Error("Expected not to find expired secret")
+	}
+
+	if secret != nil {
+		t.Error("Expected nil secret for expired secret")
+	}
+
+	// Verify secret was deleted from store
+	if store.Count() != 0 {
+		t.Errorf("Expected 0 secrets after getting expired secret, got %d", store.Count())
+	}
+}
+
+func TestWipeSecret_Nil(t *testing.T) {
+	// Test that wipeSecret handles nil gracefully
+	wipeSecret(nil)
+	// If we get here without panic, test passes
+}
+
+func TestWipeSecret_EmptySecret(t *testing.T) {
+	// Test wipeSecret with empty strings
+	secret := &Secret{
+		ID:      "",
+		Content: "",
+	}
+	wipeSecret(secret)
+
+	if secret.ID != "" {
+		t.Error("Expected ID to remain empty")
+	}
+	if secret.Content != "" {
+		t.Error("Expected Content to remain empty")
+	}
+}
