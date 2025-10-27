@@ -12,6 +12,7 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -92,7 +93,7 @@ func TestGetSecretHandler(t *testing.T) {
 	// First create a secret
 	store = NewSecretStore() // Reset store for clean test
 	secretContent := "test secret content"
-	secretID, err := store.Store(secretContent)
+	secretID, err := store.Store(secretContent, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}
@@ -145,7 +146,7 @@ func TestGetSecretHandler_OnlyOnce(t *testing.T) {
 	// First create a secret
 	store = NewSecretStore() // Reset store for clean test
 	secretContent := "test secret content"
-	secretID, err := store.Store(secretContent)
+	secretID, err := store.Store(secretContent, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}
@@ -177,7 +178,7 @@ func TestVerifySecretHandler(t *testing.T) {
 	// First create a secret
 	store = NewSecretStore() // Reset store for clean test
 	secretContent := "test secret content"
-	secretID, err := store.Store(secretContent)
+	secretID, err := store.Store(secretContent, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}
@@ -212,7 +213,7 @@ func TestVerifySecretHandler(t *testing.T) {
 
 func TestVerifySecretHandler_InvalidCode(t *testing.T) {
 	store = NewSecretStore() // Reset store for clean test
-	secretID, err := store.Store("test content")
+	secretID, err := store.Store("test content", 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}
@@ -236,7 +237,7 @@ func TestVerifySecretHandler_InvalidCode(t *testing.T) {
 
 func TestVerifySecretHandler_EmptyCode(t *testing.T) {
 	store = NewSecretStore() // Reset store for clean test
-	secretID, err := store.Store("test content")
+	secretID, err := store.Store("test content", 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}
@@ -279,7 +280,7 @@ func TestVerifySecretHandler_NotFound(t *testing.T) {
 
 func TestVerifySecretHandler_InvalidJSON(t *testing.T) {
 	store = NewSecretStore() // Reset store for clean test
-	secretID, err := store.Store("test content")
+	secretID, err := store.Store("test content", 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}

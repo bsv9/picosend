@@ -30,6 +30,7 @@ type Secret struct {
 	ID        string    `json:"id"`
 	Content   string    `json:"content"`
 	CreatedAt time.Time `json:"created_at"`
+	ExpiresAt time.Time `json:"expires_at"`
 }
 
 type SecretStore struct {
@@ -43,7 +44,7 @@ func NewSecretStore() *SecretStore {
 	}
 }
 
-func (s *SecretStore) Store(content string) (string, error) {
+func (s *SecretStore) Store(content string, lifetime time.Duration) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -53,10 +54,12 @@ func (s *SecretStore) Store(content string) (string, error) {
 	}
 
 	id := generateID()
+	now := time.Now()
 	secret := &Secret{
 		ID:        id,
 		Content:   content,
-		CreatedAt: time.Now(),
+		CreatedAt: now,
+		ExpiresAt: now.Add(lifetime),
 	}
 	s.secrets[id] = secret
 	return id, nil
@@ -67,23 +70,33 @@ func (s *SecretStore) Get(id string) (*Secret, bool) {
 	defer s.mu.Unlock()
 
 	secret, exists := s.secrets[id]
-	if exists {
-		// Create a copy of the secret for return
-		secretCopy := &Secret{
-			ID:        secret.ID,
-			Content:   secret.Content,
-			CreatedAt: secret.CreatedAt,
-		}
-
-		// Wipe the original secret's content from memory
-		wipeSecret(secret)
-
-		// Delete the secret from the store
-		delete(s.secrets, id)
-
-		return secretCopy, true
+	if !exists {
+		return nil, false
 	}
-	return nil, false
+
+	// Check if secret has expired
+	if time.Now().After(secret.ExpiresAt) {
+		// Wipe and delete expired secret
+		wipeSecret(secret)
+		delete(s.secrets, id)
+		return nil, false
+	}
+
+	// Create a copy of the secret for return
+	secretCopy := &Secret{
+		ID:        secret.ID,
+		Content:   secret.Content,
+		CreatedAt: secret.CreatedAt,
+		ExpiresAt: secret.ExpiresAt,
+	}
+
+	// Wipe the original secret's content from memory
+	wipeSecret(secret)
+
+	// Delete the secret from the store
+	delete(s.secrets, id)
+
+	return secretCopy, true
 }
 
 // wipeSecret securely overwrites secret data and creates a new secret with wiped content
@@ -114,6 +127,24 @@ func (s *SecretStore) Count() int {
 	s.mu.RLock()
 	defer s.mu.RUnlock()
 	return len(s.secrets)
+}
+
+func (s *SecretStore) CleanupExpired() int {
+	s.mu.Lock()
+	defer s.mu.Unlock()
+
+	now := time.Now()
+	count := 0
+
+	for id, secret := range s.secrets {
+		if now.After(secret.ExpiresAt) {
+			wipeSecret(secret)
+			delete(s.secrets, id)
+			count++
+		}
+	}
+
+	return count
 }
 
 func generateID() string {
@@ -191,6 +222,18 @@ func decrypt(encryptedData, keyStr string) (string, error) {
 var store = NewSecretStore()
 
 func main() {
+	// Start background cleanup goroutine
+	go func() {
+		ticker := time.NewTicker(1 * time.Minute)
+		defer ticker.Stop()
+		for range ticker.C {
+			count := store.CleanupExpired()
+			if count > 0 {
+				log.Printf("Cleaned up %d expired secrets", count)
+			}
+		}
+	}()
+
 	r := mux.NewRouter()
 
 	// STATIC SERVING

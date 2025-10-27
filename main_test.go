@@ -8,17 +8,17 @@ import (
 
 func TestSecretStore_Store(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	content := "test secret content"
-	id, err := store.Store(content)
+	id, err := store.Store(content, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
-	
+
 	if id == "" {
 		t.Error("Expected non-empty ID")
 	}
-	
+
 	if len(id) != 16 {
 		t.Errorf("Expected ID length of 16, got %d", len(id))
 	}
@@ -26,9 +26,9 @@ func TestSecretStore_Store(t *testing.T) {
 
 func TestSecretStore_Get(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	content := "test secret content"
-	id, err := store.Store(content)
+	id, err := store.Store(content, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -55,9 +55,9 @@ func TestSecretStore_Get(t *testing.T) {
 
 func TestSecretStore_GetOnlyOnce(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	content := "test secret content"
-	id, err := store.Store(content)
+	id, err := store.Store(content, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -111,14 +111,14 @@ func TestGenerateID(t *testing.T) {
 
 func TestSecretStore_Concurrent(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	// Test concurrent access
 	done := make(chan bool, 10)
-	
+
 	for i := 0; i < 10; i++ {
 		go func(i int) {
 			content := "test secret content"
-			id, err := store.Store(content)
+			id, err := store.Store(content, 24*time.Hour)
 			if err != nil {
 				t.Errorf("Goroutine %d: Expected no error, got %v", i, err)
 				done <- true
@@ -146,23 +146,23 @@ func TestSecretStore_Concurrent(t *testing.T) {
 
 func TestSecretStore_MaxLimit(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	// Store secrets up to the limit
 	content := "test secret"
 	for i := 0; i < MaxUnreadSecrets; i++ {
-		_, err := store.Store(content)
+		_, err := store.Store(content, 24*time.Hour)
 		if err != nil {
 			t.Fatalf("Expected no error storing secret %d, got %v", i, err)
 		}
 	}
-	
+
 	// Verify we have reached the limit
 	if store.Count() != MaxUnreadSecrets {
 		t.Errorf("Expected %d secrets, got %d", MaxUnreadSecrets, store.Count())
 	}
-	
+
 	// Try to store one more - should fail
-	_, err := store.Store(content)
+	_, err := store.Store(content, 24*time.Hour)
 	if err == nil {
 		t.Error("Expected error when exceeding max secrets limit")
 	}
@@ -175,10 +175,10 @@ func TestSecretStore_MaxLimit(t *testing.T) {
 
 func TestSecretStore_MemoryCleanup(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	// Store a secret
 	content := "test secret"
-	id, err := store.Store(content)
+	id, err := store.Store(content, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Expected no error, got %v", err)
 	}
@@ -202,25 +202,25 @@ func TestSecretStore_MemoryCleanup(t *testing.T) {
 
 func TestSecretStore_LimitAfterCleanup(t *testing.T) {
 	store := NewSecretStore()
-	
+
 	content := "test secret"
-	
+
 	// Fill up to the limit
 	ids := make([]string, MaxUnreadSecrets)
 	for i := 0; i < MaxUnreadSecrets; i++ {
-		id, err := store.Store(content)
+		id, err := store.Store(content, 24*time.Hour)
 		if err != nil {
 			t.Fatalf("Expected no error storing secret %d, got %v", i, err)
 		}
 		ids[i] = id
 	}
-	
+
 	// Should be at limit
-	_, err := store.Store(content)
+	_, err := store.Store(content, 24*time.Hour)
 	if err == nil {
 		t.Error("Expected error when at limit")
 	}
-	
+
 	// Read and delete half the secrets
 	for i := 0; i < MaxUnreadSecrets/2; i++ {
 		_, found := store.Get(ids[i])
@@ -228,17 +228,17 @@ func TestSecretStore_LimitAfterCleanup(t *testing.T) {
 			t.Errorf("Expected to find secret %d", i)
 		}
 	}
-	
+
 	// Should now be able to store new secrets
 	for i := 0; i < MaxUnreadSecrets/2; i++ {
-		_, err := store.Store(content)
+		_, err := store.Store(content, 24*time.Hour)
 		if err != nil {
 			t.Errorf("Expected no error after cleanup, got %v", err)
 		}
 	}
-	
+
 	// Should be at limit again
-	_, err = store.Store(content)
+	_, err = store.Store(content, 24*time.Hour)
 	if err == nil {
 		t.Error("Expected error when back at limit")
 	}

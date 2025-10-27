@@ -29,6 +29,14 @@
                             required
                         ></textarea>
                         <small id="charCount" style="color: #666">0 / 65,536 characters</small>
+
+                        <label for="lifetime">Secret Lifetime</label>
+                        <select id="lifetime" name="lifetime" required>
+                            <option value="5">5 minutes</option>
+                            <option value="60">1 hour</option>
+                            <option value="1440" selected>1 day</option>
+                        </select>
+
                         <button type="submit">Create Secret Link</button>
                     </form>
                 </article>
@@ -218,6 +226,9 @@
                     return;
                 }
 
+                // Get lifetime value
+                const lifetime = parseInt(document.getElementById("lifetime").value);
+
                 try {
                     // Get encryption key from server
                     const encryptionKey = await generateEncryptionKey();
@@ -234,6 +245,7 @@
                         body: JSON.stringify({
                             content: encryptedContent,
                             encryption_key: encryptionKey,
+                            lifetime: lifetime,
                         }),
                     });
 

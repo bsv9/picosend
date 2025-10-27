@@ -8,6 +8,7 @@ A minimalistic application for sharing secrets securely with one-time access.
 ## Features
 
 - **One-time secret sharing** - Secrets are automatically deleted after being read once
+- **Configurable lifetime** - Set secrets to expire after 5 minutes, 1 hour, or 1 day
 - **End-to-end encryption** - AES-256-CBC encryption with client-side encryption
 - **No persistent storage** - Secrets stored only in memory
 - **No user accounts required** - Anonymous and hassle-free sharing
@@ -56,6 +57,8 @@ go build -o picosend
 - **AES-256-CBC encryption** with PKCS7 padding
 - **Client-side encryption** before transmission
 - **Automatic secret deletion** after first retrieval
+- **Time-based expiration** ensures secrets are deleted even if not accessed
+- **Background cleanup** removes expired secrets from memory
 - **Transport security** prevents proxy/logging exposure
 - **Memory is securely wiped after secret deletion**
 

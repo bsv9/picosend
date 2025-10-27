@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -11,6 +12,7 @@ import (
 type CreateSecretRequest struct {
 	Content       string `json:"content"`
 	EncryptionKey string `json:"encryption_key"`
+	Lifetime      int    `json:"lifetime"` // Lifetime in minutes
 }
 
 type EncryptionKeyResponse struct {
@@ -73,7 +75,13 @@ func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	id, err := store.Store(decryptedContent)
+	// Parse lifetime (default to 24 hours if not specified or invalid)
+	lifetime := time.Duration(req.Lifetime) * time.Minute
+	if req.Lifetime <= 0 {
+		lifetime = 24 * time.Hour
+	}
+
+	id, err := store.Store(decryptedContent, lifetime)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return

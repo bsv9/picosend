@@ -6,6 +6,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/gorilla/mux"
 )
@@ -60,7 +61,7 @@ func TestDirectSecretRetrieval(t *testing.T) {
 	// This test bypasses encryption by directly storing a secret in the store
 	// to test the retrieval mechanism
 	secretContent := "Direct retrieval test"
-	secretID, err := store.Store(secretContent)
+	secretID, err := store.Store(secretContent, 24*time.Hour)
 	if err != nil {
 		t.Fatalf("Failed to store secret: %v", err)
 	}
@@ -140,10 +141,10 @@ func TestConcurrentSecretOperations(t *testing.T) {
 	for i := 0; i < numSecrets; i++ {
 		go func(index int) {
 			secretContent := "Concurrent test secret"
-			secretID, err := store.Store(secretContent)
-	if err != nil {
-		t.Fatalf("Failed to store secret: %v", err)
-	}
+			secretID, err := store.Store(secretContent, 24*time.Hour)
+			if err != nil {
+				t.Errorf("Failed to store secret: %v", err)
+			}
 			secretIDs[index] = secretID
 			done <- true
 		}(i)
