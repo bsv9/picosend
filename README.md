@@ -10,6 +10,7 @@ A minimalistic application for sharing secrets securely with one-time access.
 - **One-time secret sharing** - Secrets are automatically deleted after being read once
 - **Configurable lifetime** - Set secrets to expire after 5 minutes, 1 hour, or 1 day
 - **End-to-end encryption** - AES-256-CBC encryption with client-side encryption
+- **QR code generation** - Automatically generates QR codes for easy mobile sharing
 - **No persistent storage** - Secrets stored only in memory
 - **No user accounts required** - Anonymous and hassle-free sharing
 - **Self-hostable** - Deploy on your own infrastructure
