@@ -49,6 +49,7 @@ dockers:
     dockerfile: Dockerfile.goreleaser
     image_templates:
       - "docker.io/bsv9/picosend:{{ .Tag }}-amd64"
+    skip_push: true
     build_flag_templates:
       - "--platform=linux/amd64"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -62,6 +63,7 @@ dockers:
     dockerfile: Dockerfile.goreleaser
     image_templates:
       - "docker.io/bsv9/picosend:{{ .Tag }}-arm64"
+    skip_push: true
     build_flag_templates:
       - "--platform=linux/arm64"
       - "--label=org.opencontainers.image.created={{.Date}}"
@@ -71,6 +73,10 @@ dockers:
 
 docker_manifests:
   - name_template: "docker.io/bsv9/picosend:{{ .Tag }}"
+    image_templates:
+      - "docker.io/bsv9/picosend:{{ .Tag }}-amd64"
+      - "docker.io/bsv9/picosend:{{ .Tag }}-arm64"
+  - name_template: "docker.io/bsv9/picosend:latest"
     image_templates:
       - "docker.io/bsv9/picosend:{{ .Tag }}-amd64"
       - "docker.io/bsv9/picosend:{{ .Tag }}-arm64"
