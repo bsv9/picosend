@@ -52,6 +52,9 @@
                         <input type="text" id="secretLink" readonly />
                         <button id="copyBtn" type="button" class="primary">Copy</button>
                     </div>
+                    <div style="text-align: center; margin-top: 1.5rem">
+                        <canvas id="qrcode"></canvas>
+                    </div>
                     <footer style="margin-top: 1.5rem">
                         <button type="button" id="createAnotherBtn" class="secondary" style="width: 100%">Create Another Secret</button>
                     </footer>
@@ -67,6 +70,411 @@
         </main>
 
         <script>
+            // Pure JavaScript QR Code Generator
+            const QRCode = (function() {
+                // QR Code constants
+                const EC_LEVEL = 1; // 0=L, 1=M, 2=Q, 3=H
+
+                // Number of data codewords for each version at EC level M
+                const DATA_CODEWORDS = [0, 16, 28, 44, 64, 86, 108, 124, 154, 182, 216, 254, 290, 334, 365, 415, 453, 507, 563, 627, 669, 714, 782, 860, 914, 1000, 1062, 1128, 1193, 1267, 1373, 1455, 1541, 1631, 1725, 1812, 1914, 1992, 2102, 2216, 2334];
+
+                // Error correction blocks info [numBlocks, dataCodewordsPerBlock, ecCodewordsPerBlock]
+                const EC_BLOCKS = {
+                    1: [[1, 16, 10]], 2: [[1, 28, 16]], 3: [[1, 44, 26]], 4: [[2, 32, 18]],
+                    5: [[2, 43, 24]], 6: [[4, 27, 16]], 7: [[4, 31, 18]], 8: [[2, 38, 22], [2, 39, 22]],
+                    9: [[3, 36, 22], [2, 37, 22]], 10: [[4, 43, 26], [1, 44, 26]],
+                    11: [[1, 50, 30], [4, 51, 30]], 12: [[6, 36, 22], [2, 37, 22]],
+                    13: [[8, 37, 22], [1, 38, 22]], 14: [[4, 40, 24], [5, 41, 24]],
+                    15: [[5, 41, 24], [5, 42, 24]], 16: [[7, 45, 28], [3, 46, 28]],
+                    17: [[10, 46, 28], [1, 47, 28]], 18: [[9, 43, 26], [4, 44, 26]],
+                    19: [[3, 44, 26], [11, 45, 26]], 20: [[3, 41, 26], [13, 42, 26]],
+                    21: [[17, 42, 26]], 22: [[17, 46, 28]], 23: [[4, 47, 28], [14, 48, 28]],
+                    24: [[6, 45, 28], [14, 46, 28]], 25: [[8, 47, 28], [13, 48, 28]],
+                    26: [[19, 46, 28], [4, 47, 28]], 27: [[22, 45, 28], [3, 46, 28]],
+                    28: [[3, 45, 28], [23, 46, 28]], 29: [[21, 45, 28], [7, 46, 28]],
+                    30: [[19, 47, 28], [10, 48, 28]], 31: [[2, 46, 28], [29, 47, 28]],
+                    32: [[10, 46, 28], [23, 47, 28]], 33: [[14, 46, 28], [21, 47, 28]],
+                    34: [[14, 46, 28], [23, 47, 28]], 35: [[12, 47, 28], [26, 48, 28]],
+                    36: [[6, 47, 28], [34, 48, 28]], 37: [[29, 46, 28], [14, 47, 28]],
+                    38: [[13, 46, 28], [32, 47, 28]], 39: [[40, 47, 28], [7, 48, 28]],
+                    40: [[18, 47, 28], [31, 48, 28]]
+                };
+
+                // Alignment pattern positions
+                const ALIGNMENT_POSITIONS = {
+                    2: [6, 18], 3: [6, 22], 4: [6, 26], 5: [6, 30], 6: [6, 34],
+                    7: [6, 22, 38], 8: [6, 24, 42], 9: [6, 26, 46], 10: [6, 28, 50],
+                    11: [6, 30, 54], 12: [6, 32, 58], 13: [6, 34, 62], 14: [6, 26, 46, 66],
+                    15: [6, 26, 48, 70], 16: [6, 26, 50, 74], 17: [6, 30, 54, 78],
+                    18: [6, 30, 56, 82], 19: [6, 30, 58, 86], 20: [6, 34, 62, 90],
+                    21: [6, 28, 50, 72, 94], 22: [6, 26, 50, 74, 98], 23: [6, 30, 54, 78, 102],
+                    24: [6, 28, 54, 80, 106], 25: [6, 32, 58, 84, 110], 26: [6, 30, 58, 86, 114],
+                    27: [6, 34, 62, 90, 118], 28: [6, 26, 50, 74, 98, 122],
+                    29: [6, 30, 54, 78, 102, 126], 30: [6, 26, 52, 78, 104, 130],
+                    31: [6, 30, 56, 82, 108, 134], 32: [6, 34, 60, 86, 112, 138],
+                    33: [6, 30, 58, 86, 114, 142], 34: [6, 34, 62, 90, 118, 146],
+                    35: [6, 30, 54, 78, 102, 126, 150], 36: [6, 24, 50, 76, 102, 128, 154],
+                    37: [6, 28, 54, 80, 106, 132, 158], 38: [6, 32, 58, 84, 110, 136, 162],
+                    39: [6, 26, 54, 82, 110, 138, 166], 40: [6, 30, 58, 86, 114, 142, 170]
+                };
+
+                // Galois field multiplication
+                const GF_EXP = new Uint8Array(512);
+                const GF_LOG = new Uint8Array(256);
+                (function() {
+                    let x = 1;
+                    for (let i = 0; i < 255; i++) {
+                        GF_EXP[i] = x;
+                        GF_LOG[x] = i;
+                        x <<= 1;
+                        if (x & 0x100) x ^= 0x11d;
+                    }
+                    for (let i = 255; i < 512; i++) GF_EXP[i] = GF_EXP[i - 255];
+                })();
+
+                function gfMul(a, b) {
+                    return (a === 0 || b === 0) ? 0 : GF_EXP[GF_LOG[a] + GF_LOG[b]];
+                }
+
+                function rsGeneratorPoly(nsym) {
+                    let g = [1];
+                    for (let i = 0; i < nsym; i++) {
+                        const ng = new Array(g.length + 1).fill(0);
+                        for (let j = 0; j < g.length; j++) {
+                            ng[j] ^= gfMul(g[j], GF_EXP[i]);
+                            ng[j + 1] ^= g[j];
+                        }
+                        g = ng;
+                    }
+                    return g;
+                }
+
+                function rsEncode(data, nsym) {
+                    const gen = rsGeneratorPoly(nsym);
+                    const res = new Uint8Array(data.length + nsym);
+                    res.set(data);
+                    for (let i = 0; i < data.length; i++) {
+                        const coef = res[i];
+                        if (coef !== 0) {
+                            for (let j = 0; j < gen.length; j++) {
+                                res[i + j] ^= gfMul(gen[j], coef);
+                            }
+                        }
+                    }
+                    return res.slice(data.length);
+                }
+
+                function getVersion(dataLen) {
+                    for (let v = 1; v <= 40; v++) {
+                        // Byte mode: 4 bits mode + 8/16 bits length + 8*data bits
+                        const charCountBits = v <= 9 ? 8 : 16;
+                        const dataBits = 4 + charCountBits + dataLen * 8;
+                        const dataCapacity = DATA_CODEWORDS[v] * 8;
+                        if (dataBits <= dataCapacity) return v;
+                    }
+                    throw new Error("Data too long");
+                }
+
+                function encodeData(data, version) {
+                    const charCountBits = version <= 9 ? 8 : 16;
+                    let bits = "";
+                    bits += "0100"; // Byte mode indicator
+                    bits += data.length.toString(2).padStart(charCountBits, "0");
+                    for (let i = 0; i < data.length; i++) {
+                        bits += data.charCodeAt(i).toString(2).padStart(8, "0");
+                    }
+                    const dataCapacity = DATA_CODEWORDS[version] * 8;
+                    bits += "0000".slice(0, Math.min(4, dataCapacity - bits.length));
+                    while (bits.length % 8 !== 0) bits += "0";
+                    while (bits.length < dataCapacity) {
+                        bits += "11101100";
+                        if (bits.length < dataCapacity) bits += "00010001";
+                    }
+                    const codewords = new Uint8Array(bits.length / 8);
+                    for (let i = 0; i < codewords.length; i++) {
+                        codewords[i] = parseInt(bits.slice(i * 8, i * 8 + 8), 2);
+                    }
+                    return codewords;
+                }
+
+                function interleaveBlocks(data, version) {
+                    const blocks = EC_BLOCKS[version];
+                    const dataBlocks = [];
+                    const ecBlocks = [];
+                    let offset = 0;
+
+                    for (const [count, dataWords, ecWords] of blocks) {
+                        for (let i = 0; i < count; i++) {
+                            const block = data.slice(offset, offset + dataWords);
+                            dataBlocks.push(block);
+                            ecBlocks.push(rsEncode(block, ecWords));
+                            offset += dataWords;
+                        }
+                    }
+
+                    const result = [];
+                    const maxDataLen = Math.max(...dataBlocks.map(b => b.length));
+                    const maxEcLen = Math.max(...ecBlocks.map(b => b.length));
+
+                    for (let i = 0; i < maxDataLen; i++) {
+                        for (const block of dataBlocks) {
+                            if (i < block.length) result.push(block[i]);
+                        }
+                    }
+                    for (let i = 0; i < maxEcLen; i++) {
+                        for (const block of ecBlocks) {
+                            if (i < block.length) result.push(block[i]);
+                        }
+                    }
+                    return new Uint8Array(result);
+                }
+
+                function createMatrix(version) {
+                    const size = version * 4 + 17;
+                    const matrix = [];
+                    const reserved = [];
+                    for (let i = 0; i < size; i++) {
+                        matrix.push(new Uint8Array(size));
+                        reserved.push(new Uint8Array(size));
+                    }
+
+                    // Finder patterns
+                    function addFinderPattern(row, col) {
+                        for (let r = -1; r <= 7; r++) {
+                            for (let c = -1; c <= 7; c++) {
+                                const nr = row + r, nc = col + c;
+                                if (nr < 0 || nr >= size || nc < 0 || nc >= size) continue;
+                                reserved[nr][nc] = 1;
+                                if (r === -1 || r === 7 || c === -1 || c === 7) {
+                                    matrix[nr][nc] = 0;
+                                } else if (r === 0 || r === 6 || c === 0 || c === 6) {
+                                    matrix[nr][nc] = 1;
+                                } else if (r >= 2 && r <= 4 && c >= 2 && c <= 4) {
+                                    matrix[nr][nc] = 1;
+                                }
+                            }
+                        }
+                    }
+                    addFinderPattern(0, 0);
+                    addFinderPattern(0, size - 7);
+                    addFinderPattern(size - 7, 0);
+
+                    // Timing patterns
+                    for (let i = 8; i < size - 8; i++) {
+                        matrix[6][i] = matrix[i][6] = (i + 1) % 2;
+                        reserved[6][i] = reserved[i][6] = 1;
+                    }
+
+                    // Alignment patterns
+                    if (version >= 2) {
+                        const positions = ALIGNMENT_POSITIONS[version];
+                        for (const row of positions) {
+                            for (const col of positions) {
+                                if (reserved[row][col]) continue;
+                                for (let r = -2; r <= 2; r++) {
+                                    for (let c = -2; c <= 2; c++) {
+                                        reserved[row + r][col + c] = 1;
+                                        matrix[row + r][col + c] =
+                                            (r === -2 || r === 2 || c === -2 || c === 2 || (r === 0 && c === 0)) ? 1 : 0;
+                                    }
+                                }
+                            }
+                        }
+                    }
+
+                    // Reserve format info area
+                    for (let i = 0; i < 9; i++) {
+                        reserved[8][i] = reserved[i][8] = 1;
+                        if (i < 8) {
+                            reserved[8][size - 1 - i] = 1;
+                            reserved[size - 1 - i][8] = 1;
+                        }
+                    }
+                    matrix[size - 8][8] = 1; // Dark module
+
+                    // Version info for version >= 7
+                    if (version >= 7) {
+                        const versionBits = version;
+                        let rem = versionBits;
+                        for (let i = 0; i < 12; i++) rem = (rem << 1) ^ ((rem >> 11) * 0x1f25);
+                        const versionInfo = (versionBits << 12) | rem;
+                        for (let i = 0; i < 18; i++) {
+                            const bit = (versionInfo >> i) & 1;
+                            const row = Math.floor(i / 3);
+                            const col = i % 3 + size - 11;
+                            matrix[row][col] = matrix[col][row] = bit;
+                            reserved[row][col] = reserved[col][row] = 1;
+                        }
+                    }
+
+                    return { matrix, reserved, size };
+                }
+
+                function placeData(matrix, reserved, data) {
+                    const size = matrix.length;
+                    let bitIndex = 0;
+                    let upward = true;
+
+                    for (let col = size - 1; col >= 0; col -= 2) {
+                        if (col === 6) col = 5;
+                        for (let i = 0; i < size; i++) {
+                            const row = upward ? size - 1 - i : i;
+                            for (let j = 0; j < 2; j++) {
+                                const c = col - j;
+                                if (c < 0 || reserved[row][c]) continue;
+                                if (bitIndex < data.length * 8) {
+                                    const byteIndex = Math.floor(bitIndex / 8);
+                                    const bitOffset = 7 - (bitIndex % 8);
+                                    matrix[row][c] = (data[byteIndex] >> bitOffset) & 1;
+                                    bitIndex++;
+                                }
+                            }
+                        }
+                        upward = !upward;
+                    }
+                }
+
+                function applyMask(matrix, reserved, maskNum) {
+                    const size = matrix.length;
+                    const maskFn = [
+                        (r, c) => (r + c) % 2 === 0,
+                        (r, c) => r % 2 === 0,
+                        (r, c) => c % 3 === 0,
+                        (r, c) => (r + c) % 3 === 0,
+                        (r, c) => (Math.floor(r / 2) + Math.floor(c / 3)) % 2 === 0,
+                        (r, c) => ((r * c) % 2) + ((r * c) % 3) === 0,
+                        (r, c) => (((r * c) % 2) + ((r * c) % 3)) % 2 === 0,
+                        (r, c) => (((r + c) % 2) + ((r * c) % 3)) % 2 === 0
+                    ][maskNum];
+
+                    for (let r = 0; r < size; r++) {
+                        for (let c = 0; c < size; c++) {
+                            if (!reserved[r][c] && maskFn(r, c)) {
+                                matrix[r][c] ^= 1;
+                            }
+                        }
+                    }
+                }
+
+                function addFormatInfo(matrix, maskNum) {
+                    const size = matrix.length;
+                    const formatBits = (EC_LEVEL << 3) | maskNum;
+                    let rem = formatBits;
+                    for (let i = 0; i < 10; i++) rem = (rem << 1) ^ ((rem >> 9) * 0x537);
+                    const formatInfo = ((formatBits << 10) | rem) ^ 0x5412;
+
+                    // Place format info
+                    const positions = [
+                        [[8, 0], [8, 1], [8, 2], [8, 3], [8, 4], [8, 5], [8, 7], [8, 8],
+                         [7, 8], [5, 8], [4, 8], [3, 8], [2, 8], [1, 8], [0, 8]],
+                        [[8, size - 1], [8, size - 2], [8, size - 3], [8, size - 4],
+                         [8, size - 5], [8, size - 6], [8, size - 7], [8, size - 8],
+                         [size - 7, 8], [size - 6, 8], [size - 5, 8], [size - 4, 8],
+                         [size - 3, 8], [size - 2, 8], [size - 1, 8]]
+                    ];
+
+                    for (let i = 0; i < 15; i++) {
+                        const bit = (formatInfo >> i) & 1;
+                        matrix[positions[0][i][0]][positions[0][i][1]] = bit;
+                        matrix[positions[1][i][0]][positions[1][i][1]] = bit;
+                    }
+                }
+
+                function calculatePenalty(matrix) {
+                    const size = matrix.length;
+                    let penalty = 0;
+
+                    // Rule 1: Groups of 5+ same color
+                    for (let r = 0; r < size; r++) {
+                        let count = 1;
+                        for (let c = 1; c < size; c++) {
+                            if (matrix[r][c] === matrix[r][c - 1]) {
+                                count++;
+                            } else {
+                                if (count >= 5) penalty += count - 2;
+                                count = 1;
+                            }
+                        }
+                        if (count >= 5) penalty += count - 2;
+                    }
+                    for (let c = 0; c < size; c++) {
+                        let count = 1;
+                        for (let r = 1; r < size; r++) {
+                            if (matrix[r][c] === matrix[r - 1][c]) {
+                                count++;
+                            } else {
+                                if (count >= 5) penalty += count - 2;
+                                count = 1;
+                            }
+                        }
+                        if (count >= 5) penalty += count - 2;
+                    }
+
+                    // Rule 2: 2x2 blocks
+                    for (let r = 0; r < size - 1; r++) {
+                        for (let c = 0; c < size - 1; c++) {
+                            const val = matrix[r][c];
+                            if (val === matrix[r][c + 1] && val === matrix[r + 1][c] && val === matrix[r + 1][c + 1]) {
+                                penalty += 3;
+                            }
+                        }
+                    }
+
+                    return penalty;
+                }
+
+                function generate(text) {
+                    const version = getVersion(text.length);
+                    const data = encodeData(text, version);
+                    const codewords = interleaveBlocks(data, version);
+                    const { matrix, reserved, size } = createMatrix(version);
+
+                    placeData(matrix, reserved, codewords);
+
+                    // Find best mask
+                    let bestMask = 0;
+                    let bestPenalty = Infinity;
+                    for (let m = 0; m < 8; m++) {
+                        const testMatrix = matrix.map(row => new Uint8Array(row));
+                        applyMask(testMatrix, reserved, m);
+                        const penalty = calculatePenalty(testMatrix);
+                        if (penalty < bestPenalty) {
+                            bestPenalty = penalty;
+                            bestMask = m;
+                        }
+                    }
+
+                    applyMask(matrix, reserved, bestMask);
+                    addFormatInfo(matrix, bestMask);
+
+                    return { matrix, size };
+                }
+
+                function draw(canvas, text, options = {}) {
+                    const { scale = 4, margin = 4, lightColor = "#ffffff", darkColor = "#000000" } = options;
+                    const { matrix, size } = generate(text);
+                    const totalSize = (size + margin * 2) * scale;
+
+                    canvas.width = totalSize;
+                    canvas.height = totalSize;
+
+                    const ctx = canvas.getContext("2d");
+                    ctx.fillStyle = lightColor;
+                    ctx.fillRect(0, 0, totalSize, totalSize);
+
+                    ctx.fillStyle = darkColor;
+                    for (let r = 0; r < size; r++) {
+                        for (let c = 0; c < size; c++) {
+                            if (matrix[r][c]) {
+                                ctx.fillRect((c + margin) * scale, (r + margin) * scale, scale, scale);
+                            }
+                        }
+                    }
+                }
+
+                return { generate, draw };
+            })();
+
             // AES encryption functions - generate key locally
             async function generateEncryptionKey() {
                 // Generate a 256-bit (32 byte) random key
@@ -256,6 +664,10 @@
                         const secretLink = window.location.origin + "/s/" + data.id + "#" + encryptionKey;
 
                         document.getElementById("secretLink").value = secretLink;
+
+                        // Generate QR code for the secret link
+                        const qrCanvas = document.getElementById("qrcode");
+                        QRCode.draw(qrCanvas, secretLink, { scale: 5, margin: 2 });
 
                         document.getElementById("secretFormSection").style.display = "none";
                         document.getElementById("result").style.display = "block";
