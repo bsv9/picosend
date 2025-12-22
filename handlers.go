@@ -7,17 +7,11 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/skip2/go-qrcode"
 )
 
 type CreateSecretRequest struct {
-	Content       string `json:"content"`
-	EncryptionKey string `json:"encryption_key"`
-	Lifetime      int    `json:"lifetime"` // Lifetime in minutes
-}
-
-type EncryptionKeyResponse struct {
-	Key string `json:"key"`
+	Content  string `json:"content"`
+	Lifetime int    `json:"lifetime"` // Lifetime in minutes
 }
 
 type CreateSecretResponse struct {
@@ -33,13 +27,6 @@ type VerifySecretRequest struct {
 	VerificationCode string `json:"verification_code"`
 }
 
-func encryptionKeyHandler(w http.ResponseWriter, r *http.Request) {
-	key := generateEncryptionKey()
-	
-	w.Header().Set("Content-Type", "application/json")
-	json.NewEncoder(w).Encode(EncryptionKeyResponse{Key: key})
-}
-
 func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 	var req CreateSecretRequest
 	if err := json.NewDecoder(r.Body).Decode(&req); err != nil {
@@ -52,27 +39,9 @@ func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// Validate content length
-	if len(req.Content) > MaxSecretLength {
-		http.Error(w, fmt.Sprintf("Content exceeds maximum length of %d characters", MaxSecretLength), http.StatusBadRequest)
-		return
-	}
-
-	if req.EncryptionKey == "" {
-		http.Error(w, "Encryption key cannot be empty", http.StatusBadRequest)
-		return
-	}
-
-	// Decrypt the content before storing
-	decryptedContent, err := decrypt(req.Content, req.EncryptionKey)
-	if err != nil {
-		http.Error(w, "Failed to decrypt content", http.StatusBadRequest)
-		return
-	}
-
-	// Validate decrypted content length as well
-	if len(decryptedContent) > MaxSecretLength {
-		http.Error(w, fmt.Sprintf("Decrypted content exceeds maximum length of %d characters", MaxSecretLength), http.StatusBadRequest)
+	// Validate encrypted content length (base64 encoded, so can be larger than plaintext)
+	if len(req.Content) > MaxSecretLength*2 {
+		http.Error(w, fmt.Sprintf("Content exceeds maximum length of %d characters", MaxSecretLength*2), http.StatusBadRequest)
 		return
 	}
 
@@ -82,7 +51,8 @@ func createSecretHandler(w http.ResponseWriter, r *http.Request) {
 		lifetime = 24 * time.Hour
 	}
 
-	id, err := store.Store(decryptedContent, lifetime)
+	// Store encrypted content as-is (no decryption on server)
+	id, err := store.Store(req.Content, lifetime)
 	if err != nil {
 		http.Error(w, err.Error(), http.StatusTooManyRequests)
 		return
@@ -139,32 +109,3 @@ func verifySecretHandler(w http.ResponseWriter, r *http.Request) {
 	})
 }
 
-func qrCodeHandler(w http.ResponseWriter, r *http.Request) {
-	vars := mux.Vars(r)
-	id := vars["id"]
-
-	// Build the full URL for the secret
-	scheme := "http"
-	if r.TLS != nil {
-		scheme = "https"
-	}
-	host := r.Host
-	secretURL := fmt.Sprintf("%s://%s/s/%s", scheme, host, id)
-
-	// Generate QR code
-	qr, err := qrcode.New(secretURL, qrcode.Medium)
-	if err != nil {
-		http.Error(w, "Failed to generate QR code", http.StatusInternalServerError)
-		return
-	}
-
-	// Set QR code size (256x256 pixels)
-	png, err := qr.PNG(256)
-	if err != nil {
-		http.Error(w, "Failed to generate QR code image", http.StatusInternalServerError)
-		return
-	}
-
-	w.Header().Set("Content-Type", "image/png")
-	w.Write(png)
-}

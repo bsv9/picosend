@@ -1,8 +1,6 @@
 package main
 
 import (
-	"crypto/aes"
-	"crypto/cipher"
 	"crypto/rand"
 	"embed"
 	"encoding/base64"
@@ -153,72 +151,6 @@ func generateID() string {
 	return base64.URLEncoding.WithPadding(base64.NoPadding).EncodeToString(bytes)
 }
 
-func generateEncryptionKey() string {
-	key := make([]byte, 32) // 256-bit key for AES
-	rand.Read(key)
-	return base64.StdEncoding.EncodeToString(key)
-}
-
-func decrypt(encryptedData, keyStr string) (string, error) {
-	key, err := base64.StdEncoding.DecodeString(keyStr)
-	if err != nil {
-		return "", err
-	}
-
-	ciphertext, err := base64.StdEncoding.DecodeString(encryptedData)
-	if err != nil {
-		return "", err
-	}
-
-	block, err := aes.NewCipher(key)
-	if err != nil {
-		return "", err
-	}
-
-	if len(ciphertext) < aes.BlockSize {
-		return "", fmt.Errorf("ciphertext too short")
-	}
-
-	// Check if ciphertext length is valid for CBC (must be multiple of block size)
-	if len(ciphertext)%aes.BlockSize != 0 {
-		return "", fmt.Errorf("ciphertext is not a multiple of the block size")
-	}
-
-	iv := ciphertext[:aes.BlockSize]
-	ciphertext = ciphertext[aes.BlockSize:]
-
-	// Check if there's actual ciphertext after the IV
-	if len(ciphertext) == 0 {
-		return "", fmt.Errorf("no ciphertext after IV")
-	}
-
-	mode := cipher.NewCBCDecrypter(block, iv)
-	mode.CryptBlocks(ciphertext, ciphertext)
-
-	// Validate and remove PKCS7 padding
-	if len(ciphertext) == 0 {
-		return "", fmt.Errorf("empty ciphertext after decryption")
-	}
-
-	padding := int(ciphertext[len(ciphertext)-1])
-	if padding > aes.BlockSize || padding == 0 {
-		return "", fmt.Errorf("invalid padding")
-	}
-
-	if len(ciphertext) < padding {
-		return "", fmt.Errorf("padding size larger than ciphertext")
-	}
-
-	// Validate that all padding bytes are the same
-	for i := len(ciphertext) - padding; i < len(ciphertext); i++ {
-		if ciphertext[i] != byte(padding) {
-			return "", fmt.Errorf("invalid PKCS7 padding")
-		}
-	}
-
-	return string(ciphertext[:len(ciphertext)-padding]), nil
-}
-
 var store = NewSecretStore()
 
 func main() {
@@ -271,11 +203,9 @@ func main() {
 	}).Methods("GET")
 
 	r.HandleFunc("/", homeHandler).Methods("GET")
-	r.HandleFunc("/api/encryption-key", encryptionKeyHandler).Methods("GET")
 	r.HandleFunc("/api/secrets", createSecretHandler).Methods("POST")
 	r.HandleFunc("/api/secrets/{id}", getSecretHandler).Methods("GET")
 	r.HandleFunc("/api/secrets/{id}/verify", verifySecretHandler).Methods("POST")
-	r.HandleFunc("/api/secrets/{id}/qr", qrCodeHandler).Methods("GET")
 	r.HandleFunc("/s/{id}", viewSecretHandler).Methods("GET")
 
 	fmt.Println("Server starting on :8080")

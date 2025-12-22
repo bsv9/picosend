@@ -9,14 +9,12 @@ A minimalistic application for sharing secrets securely with one-time access.
 
 - **One-time secret sharing** - Secrets are automatically deleted after being read once
 - **Configurable lifetime** - Set secrets to expire after 5 minutes, 1 hour, or 1 day
-- **End-to-end encryption** - AES-256-CBC encryption with client-side encryption
-- **QR code generation** - Automatically generates QR codes for easy mobile sharing
+- **True end-to-end encryption** - Server never sees your plaintext or encryption key
 - **No persistent storage** - Secrets stored only in memory
 - **No user accounts required** - Anonymous and hassle-free sharing
 - **Self-hostable** - Deploy on your own infrastructure
 - **Open source** - Transparent and auditable code
 - **Robot protection** - Seamless verification code system
-- **Transport security** - Prevents exposure through proxies or logs
 - **Minimalistic design** - Simple and intuitive user interface
 - **Secure Password Generation** - Generates strong, random passwords for enhanced security
 
@@ -55,13 +53,29 @@ go build -o picosend
 
 ## Security Features
 
-- **AES-256-CBC encryption** with PKCS7 padding
-- **Client-side encryption** before transmission
+### End-to-End Encryption
+
+Picosend implements true end-to-end encryption where the server **never** has access to your plaintext data or encryption keys:
+
+1. **Key Generation** - A random 256-bit AES key is generated entirely in your browser
+2. **Local Encryption** - Your secret is encrypted client-side using AES-256-CBC before leaving your device
+3. **Key in URL Fragment** - The encryption key is embedded in the URL hash fragment (`#`), which is never sent to the server
+4. **Server Stores Ciphertext Only** - The server only receives and stores the encrypted content
+5. **Local Decryption** - When the recipient opens the link, decryption happens entirely in their browser
+
+```
+Secret Link: https://example.com/s/abc123#<encryption-key>
+                                         ↑
+                            Hash fragment never sent to server
+```
+
+### Additional Security
+
 - **Automatic secret deletion** after first retrieval
 - **Time-based expiration** ensures secrets are deleted even if not accessed
 - **Background cleanup** removes expired secrets from memory
-- **Transport security** prevents proxy/logging exposure
-- **Memory is securely wiped after secret deletion**
+- **Memory is securely wiped** after secret deletion
+- **No logging of sensitive data** - Only encrypted content touches the server
 
 ## License
 

@@ -52,15 +52,6 @@
                         <input type="text" id="secretLink" readonly />
                         <button id="copyBtn" type="button" class="primary">Copy</button>
                     </div>
-                    <div style="text-align: center; margin-top: 1rem">
-                        <p><strong>Or scan this QR code:</strong></p>
-                        <img
-                            id="qrCode"
-                            src=""
-                            alt="QR Code"
-                            style="max-width: 256px; border: 1px solid #ddd; padding: 10px; border-radius: 8px"
-                        />
-                    </div>
                     <footer style="margin-top: 1.5rem">
                         <button type="button" id="createAnotherBtn" class="secondary" style="width: 100%">Create Another Secret</button>
                     </footer>
@@ -76,15 +67,12 @@
         </main>
 
         <script>
-            // AES encryption functions
+            // AES encryption functions - generate key locally
             async function generateEncryptionKey() {
-                try {
-                    const response = await fetch("/api/encryption-key");
-                    const data = await response.json();
-                    return data.key;
-                } catch (error) {
-                    throw new Error("Failed to get encryption key");
-                }
+                // Generate a 256-bit (32 byte) random key
+                const keyBytes = crypto.getRandomValues(new Uint8Array(32));
+                // Return as base64 for URL fragment
+                return btoa(String.fromCharCode(...keyBytes));
             }
 
             async function encryptData(plaintext, keyBase64) {
@@ -92,7 +80,7 @@
                 const keyBytes = Uint8Array.from(atob(keyBase64), (c) => c.charCodeAt(0));
 
                 // Import the key
-                const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["encrypt"]);
+                const cryptoKey = await crypto.subtle.importKey("raw", keyBytes, { name: "AES-CBC" }, false, ["encrypt", "decrypt"]);
 
                 // Generate random IV
                 const iv = crypto.getRandomValues(new Uint8Array(16));
@@ -244,13 +232,13 @@
                 const lifetime = parseInt(document.getElementById("lifetime").value);
 
                 try {
-                    // Get encryption key from server
+                    // Generate encryption key locally (no server call)
                     const encryptionKey = await generateEncryptionKey();
 
-                    // Encrypt the secret content
+                    // Encrypt the secret content locally
                     const encryptedContent = await encryptData(secretContent, encryptionKey);
 
-                    // Send encrypted content to server
+                    // Send only encrypted content to server (key stays in URL fragment only)
                     const response = await fetch("/api/secrets", {
                         method: "POST",
                         headers: {
@@ -258,17 +246,17 @@
                         },
                         body: JSON.stringify({
                             content: encryptedContent,
-                            encryption_key: encryptionKey,
                             lifetime: lifetime,
                         }),
                     });
 
                     if (response.ok) {
                         const data = await response.json();
-                        const secretLink = window.location.origin + "/s/" + data.id;
+                        // Include encryption key in URL hash fragment (no trailing slash before hash)
+                        const secretLink = window.location.origin + "/s/" + data.id + "#" + encryptionKey;
 
                         document.getElementById("secretLink").value = secretLink;
-                        document.getElementById("qrCode").src = "/api/secrets/" + data.id + "/qr";
+
                         document.getElementById("secretFormSection").style.display = "none";
                         document.getElementById("result").style.display = "block";
                         document.getElementById("secret").value = "";
