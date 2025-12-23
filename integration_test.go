@@ -8,21 +8,11 @@ import (
 	"net/http/httptest"
 	"testing"
 	"time"
-
-	"github.com/gorilla/mux"
 )
 
 func setupTestServer() *httptest.Server {
 	store = NewSecretStore() // Reset store for clean tests
-
-	r := mux.NewRouter()
-	r.HandleFunc("/api/secrets", createSecretHandler).Methods("POST")
-	r.HandleFunc("/api/secrets/{id}", getSecretHandler).Methods("GET")
-	r.HandleFunc("/api/secrets/{id}/verify", verifySecretHandler).Methods("POST")
-	r.HandleFunc("/s/{id}", viewSecretHandler).Methods("GET")
-	r.HandleFunc("/", homeHandler).Methods("GET")
-
-	return httptest.NewServer(r)
+	return httptest.NewServer(setupRouter())
 }
 
 func TestFullSecretFlow(t *testing.T) {

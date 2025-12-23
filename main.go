@@ -153,45 +153,13 @@ func generateID() string {
 
 var store = NewSecretStore()
 
-func main() {
-	// Start background cleanup goroutine
-	go func() {
-		ticker := time.NewTicker(1 * time.Minute)
-		defer ticker.Stop()
-		for range ticker.C {
-			count := store.CleanupExpired()
-			if count > 0 {
-				log.Printf("Cleaned up %d expired secrets", count)
-			}
-		}
-	}()
-
+// setupRouter creates and configures the HTTP router with all routes.
+// This is exported for testing purposes.
+func setupRouter() *mux.Router {
 	r := mux.NewRouter()
 
-	// STATIC SERVING
-	// Serve embedded Pico CSS
-	r.HandleFunc("/static/css/pico.min.css", func(w http.ResponseWriter, r *http.Request) {
-		data, err := staticFS.ReadFile("static/css/pico.min.css")
-		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", "text/css")
-		w.Write(data)
-	}).Methods("GET")
-
-	// Serve Open Graph image
-	r.HandleFunc("/static/og-image.png", func(w http.ResponseWriter, r *http.Request) {
-		data, err := staticFS.ReadFile("static/og-image.png")
-		if err != nil {
-			http.Error(w, "File not found", http.StatusNotFound)
-			return
-		}
-		w.Header().Set("Content-Type", "image/png")
-		w.Write(data)
-	}).Methods("GET")
-
-	// Serve robots.txt
+	// Static files
+	r.PathPrefix("/static/").Handler(http.FileServer(http.FS(staticFS)))
 	r.HandleFunc("/robots.txt", func(w http.ResponseWriter, r *http.Request) {
 		data, err := staticFS.ReadFile("static/robots.txt")
 		if err != nil {
@@ -202,12 +170,33 @@ func main() {
 		w.Write(data)
 	}).Methods("GET")
 
+	// Views
 	r.HandleFunc("/", homeHandler).Methods("GET")
+	r.HandleFunc("/s/{id}", viewSecretHandler).Methods("GET")
+
+	// API
 	r.HandleFunc("/api/secrets", createSecretHandler).Methods("POST")
 	r.HandleFunc("/api/secrets/{id}", getSecretHandler).Methods("GET")
 	r.HandleFunc("/api/secrets/{id}/verify", verifySecretHandler).Methods("POST")
-	r.HandleFunc("/s/{id}", viewSecretHandler).Methods("GET")
 
+	return r
+}
+
+func startCleanupWorker() {
+	ticker := time.NewTicker(1 * time.Minute)
+	defer ticker.Stop()
+	for range ticker.C {
+		count := store.CleanupExpired()
+		if count > 0 {
+			log.Printf("Cleaned up %d expired secrets", count)
+		}
+	}
+}
+
+func main() {
+	go startCleanupWorker()
+
+	r := setupRouter()
 	fmt.Println("Server starting on :8080")
 	log.Fatal(http.ListenAndServe(":8080", r))
 }
