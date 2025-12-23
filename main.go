@@ -182,15 +182,29 @@ func setupRouter() *mux.Router {
 	return r
 }
 
-func startCleanupWorker() {
-	ticker := time.NewTicker(1 * time.Minute)
+// runCleanupWorker runs the cleanup loop with a configurable interval.
+// It stops when the stop channel is closed. Returns the total number of secrets cleaned.
+func runCleanupWorker(interval time.Duration, stop <-chan struct{}) int {
+	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
-	for range ticker.C {
-		count := store.CleanupExpired()
-		if count > 0 {
-			log.Printf("Cleaned up %d expired secrets", count)
+
+	total := 0
+	for {
+		select {
+		case <-ticker.C:
+			count := store.CleanupExpired()
+			if count > 0 {
+				log.Printf("Cleaned up %d expired secrets", count)
+			}
+			total += count
+		case <-stop:
+			return total
 		}
 	}
+}
+
+func startCleanupWorker() {
+	runCleanupWorker(1*time.Minute, make(chan struct{}))
 }
 
 func main() {

@@ -379,3 +379,137 @@ func TestWipeSecret_EmptySecret(t *testing.T) {
 		t.Error("Expected Content to remain empty")
 	}
 }
+
+func TestRunCleanupWorker_CleansExpiredSecrets(t *testing.T) {
+	store = NewSecretStore() // Reset global store
+
+	// Store secrets with very short lifetime
+	for i := 0; i < 5; i++ {
+		_, err := store.Store("expired secret", 1*time.Millisecond)
+		if err != nil {
+			t.Fatalf("Failed to store secret: %v", err)
+		}
+	}
+
+	// Store secrets with long lifetime
+	for i := 0; i < 3; i++ {
+		_, err := store.Store("valid secret", 24*time.Hour)
+		if err != nil {
+			t.Fatalf("Failed to store secret: %v", err)
+		}
+	}
+
+	// Verify initial count
+	if store.Count() != 8 {
+		t.Fatalf("Expected 8 secrets, got %d", store.Count())
+	}
+
+	// Wait for short-lived secrets to expire
+	time.Sleep(10 * time.Millisecond)
+
+	// Run cleanup worker with short interval
+	stop := make(chan struct{})
+	done := make(chan int)
+
+	go func() {
+		total := runCleanupWorker(10*time.Millisecond, stop)
+		done <- total
+	}()
+
+	// Let the worker run for a couple of ticks
+	time.Sleep(25 * time.Millisecond)
+	close(stop)
+
+	total := <-done
+
+	// Should have cleaned up 5 expired secrets
+	if total != 5 {
+		t.Errorf("Expected 5 secrets cleaned, got %d", total)
+	}
+
+	// Should have 3 secrets remaining
+	if store.Count() != 3 {
+		t.Errorf("Expected 3 secrets remaining, got %d", store.Count())
+	}
+}
+
+func TestRunCleanupWorker_StopsOnSignal(t *testing.T) {
+	store = NewSecretStore() // Reset global store
+
+	stop := make(chan struct{})
+	done := make(chan bool)
+
+	go func() {
+		runCleanupWorker(100*time.Millisecond, stop)
+		done <- true
+	}()
+
+	// Stop immediately
+	close(stop)
+
+	// Worker should exit promptly
+	select {
+	case <-done:
+		// Success
+	case <-time.After(50 * time.Millisecond):
+		t.Error("Worker did not stop in time")
+	}
+}
+
+func TestRunCleanupWorker_NoExpiredSecrets(t *testing.T) {
+	store = NewSecretStore() // Reset global store
+
+	// Store only long-lived secrets
+	for i := 0; i < 3; i++ {
+		_, err := store.Store("valid secret", 24*time.Hour)
+		if err != nil {
+			t.Fatalf("Failed to store secret: %v", err)
+		}
+	}
+
+	stop := make(chan struct{})
+	done := make(chan int)
+
+	go func() {
+		total := runCleanupWorker(10*time.Millisecond, stop)
+		done <- total
+	}()
+
+	// Let the worker run for a couple of ticks
+	time.Sleep(25 * time.Millisecond)
+	close(stop)
+
+	total := <-done
+
+	// Should have cleaned up 0 secrets
+	if total != 0 {
+		t.Errorf("Expected 0 secrets cleaned, got %d", total)
+	}
+
+	// All secrets should remain
+	if store.Count() != 3 {
+		t.Errorf("Expected 3 secrets remaining, got %d", store.Count())
+	}
+}
+
+func TestRunCleanupWorker_EmptyStore(t *testing.T) {
+	store = NewSecretStore() // Reset global store
+
+	stop := make(chan struct{})
+	done := make(chan int)
+
+	go func() {
+		total := runCleanupWorker(10*time.Millisecond, stop)
+		done <- total
+	}()
+
+	// Let the worker run for a tick
+	time.Sleep(15 * time.Millisecond)
+	close(stop)
+
+	total := <-done
+
+	if total != 0 {
+		t.Errorf("Expected 0 secrets cleaned from empty store, got %d", total)
+	}
+}
