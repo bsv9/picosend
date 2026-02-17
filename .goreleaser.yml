@@ -51,6 +51,7 @@ dockers:
       - "docker.io/bsv9/picosend:{{ .Tag }}-amd64"
     build_flag_templates:
       - "--platform=linux/amd64"
+      - "--provenance=false"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
@@ -64,6 +65,7 @@ dockers:
       - "docker.io/bsv9/picosend:{{ .Tag }}-arm64"
     build_flag_templates:
       - "--platform=linux/arm64"
+      - "--provenance=false"
       - "--label=org.opencontainers.image.created={{.Date}}"
       - "--label=org.opencontainers.image.title={{.ProjectName}}"
       - "--label=org.opencontainers.image.revision={{.FullCommit}}"
